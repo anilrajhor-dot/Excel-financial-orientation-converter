@@ -69,7 +69,7 @@ th{background:#eef4fb;position:sticky;top:0;z-index:1}
 <section class="card">
 <h1>Excel Financial Orientation Converter</h1>
 <div class="sub">Convert financial/reporting Excel, CSV and PDF between <b>Particulars ↓ + Dates/Years →</b> and <b>Dates/Years ↓ + Particulars →</b>.</div>
-<div class="badge">Version 8.5.6 • Financial Table Structure Fix</div>
+<div class="badge">Version 8.5.7 • Financial Table Structure Fix</div>
 </section>
 
 <section class="card">
@@ -106,7 +106,7 @@ th{background:#eef4fb;position:sticky;top:0;z-index:1}
 <button class="primary" id="convert" disabled>Convert &amp; Preview</button>
 <button class="secondary" id="reset">Reset</button>
 </div>
-<p class="note">PDF extraction is performed locally in the browser. Version 8.5.6 keeps the complete reconstructed financial table as logical records and detects the actual financial-table structure before orientation conversion. It groups text by visual Y position and uses X positions to form cells, reducing the chance that multi-word particulars become separate columns. Scanned/image-only PDFs still require OCR. Financial PDFs are first identified as a logical table before orientation conversion.</p>
+<p class="note">PDF extraction is performed locally in the browser. Version 8.5.7 keeps the complete reconstructed financial table as logical records and detects the actual financial-table structure before orientation conversion. It groups text by visual Y position and uses X positions to form cells, reducing the chance that multi-word particulars become separate columns. Scanned/image-only PDFs still require OCR. Financial PDFs are first identified as a logical table before orientation conversion.</p>
 </section>
 
 <section class="card hidden" id="previewCard">
@@ -485,7 +485,7 @@ function detectFinancialTable(rows){
   /*
    * 3. Horizontal-header candidate.
    *
-   * v8.5.6 FIX:
+   * v8.5.7 FIX:
    * The earlier detector stopped after only two evidence rows. That could
    * turn a valid 20-row × 3-column financial table into a 3-row × 3-column
    * preview. This version retains the COMPLETE contiguous table.
@@ -646,12 +646,19 @@ $("convert").onclick=async()=>{
       const detected=getPdfBaseTable(sourceRows);
       if(detected.kind==="financial"){
         const base=detected.table;
-        if(base.length<2 || Math.max(...base.map(r=>r.length),0)<3){
-          throw new Error("Could not reliably identify the financial table structure.");
+        /* Version 8.5.7: header recognition is diagnostic, never fatal.
+           A structurally valid financial table may have a partially reconstructed
+           header, especially with PDF text emitted in separate visual records. */
+        const rowsCount=base.length;
+        const colsCount=Math.max(...base.map(r=>r.length),0);
+        if(rowsCount<2 || colsCount<2){
+          /* Keep the conversion alive if there is usable reconstructed data. */
+          console.warn("Financial table structure is incomplete; preserving best reconstruction.", {rowsCount, colsCount});
         }
         const headerText=base[0].join(" ");
-        if(!/(particulars|particular|description|details)/i.test(headerText)){
-          throw new Error("Could not reliably identify the financial table header.");
+        const hasRecognisedHeader=/\b(particulars|particular|description|details)\b/i.test(headerText);
+        if(!hasRecognisedHeader){
+          console.warn("Financial table header not explicitly recognised; using reconstructed table.");
         }
       }
     }
@@ -756,13 +763,13 @@ function download(kind){
     XLSX.utils.book_append_sheet(wb,ws,"Converted");
 
     /* SheetJS writeFile handles the platform-specific file save. */
-    XLSX.writeFile(wb,`${name}_converted_v8.5.6.xlsx`);
+    XLSX.writeFile(wb,`${name}_converted_v8.5.7.xlsx`);
     setStatus("Excel file prepared from the same Preview data.");
   }else{
     const ws=XLSX.utils.aoa_to_sheet(data);
     const csv=XLSX.utils.sheet_to_csv(ws);
     const blob=new Blob(["\ufeff"+csv],{type:"text/csv;charset=utf-8"});
-    saveBlob(blob,`${name}_converted_v8.5.6.csv`);
+    saveBlob(blob,`${name}_converted_v8.5.7.csv`);
     setStatus("CSV file prepared from the same Preview data.");
   }
 }
