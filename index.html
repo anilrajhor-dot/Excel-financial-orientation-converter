@@ -69,7 +69,7 @@ th{background:#eef4fb;position:sticky;top:0;z-index:1}
 <section class="card">
 <h1>Excel Financial Orientation Converter</h1>
 <div class="sub">Convert financial/reporting Excel, CSV and PDF between <b>Particulars ↓ + Dates/Years →</b> and <b>Dates/Years ↓ + Particulars →</b>.</div>
-<div class="badge">Version 8.5.4 • Mobile Preview Fix</div>
+<div class="badge">Version 8.5.5 • Preview Scroll Fix</div>
 </section>
 
 <section class="card">
@@ -106,7 +106,7 @@ th{background:#eef4fb;position:sticky;top:0;z-index:1}
 <button class="primary" id="convert" disabled>Convert &amp; Preview</button>
 <button class="secondary" id="reset">Reset</button>
 </div>
-<p class="note">PDF extraction is performed locally in the browser. Version 8.5.3 keeps reconstructed PDF rows as logical records and detects the actual financial-table structure before orientation conversion. It groups text by visual Y position and uses X positions to form cells, reducing the chance that multi-word particulars become separate columns. Scanned/image-only PDFs still require OCR. Financial PDFs are first identified as a logical table before orientation conversion.</p>
+<p class="note">PDF extraction is performed locally in the browser. Version 8.5.5 keeps reconstructed PDF rows as logical records and detects the actual financial-table structure before orientation conversion. It groups text by visual Y position and uses X positions to form cells, reducing the chance that multi-word particulars become separate columns. Scanned/image-only PDFs still require OCR. Financial PDFs are first identified as a logical table before orientation conversion.</p>
 </section>
 
 <section class="card hidden" id="previewCard">
@@ -669,6 +669,8 @@ $("convert").onclick=async()=>{
 function render(a){
   const t=$("preview");
   t.innerHTML="";
+  const tableWrap=t.closest(".tableWrap");
+  if(tableWrap) tableWrap.scrollLeft=0;
   if(!a.length){
     $("count").textContent="0 rows × 0 columns";
     const hint=$("previewHint");
