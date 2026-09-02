@@ -49,9 +49,19 @@ button:disabled{opacity:.45;cursor:not-allowed}
 .count{color:var(--muted);font-weight:800}
 .tableWrap{overflow:auto;overflow-x:auto;border:2px solid #d7e1ee;border-radius:20px;margin-top:10px;max-height:560px;background:#fff;-webkit-overflow-scrolling:touch}
 table{border-collapse:collapse;min-width:100%;width:max-content;max-width:none;table-layout:auto;font-size:14px}
-th,td{border:1px solid #d9e1ec;padding:10px 12px;vertical-align:top;white-space:pre-wrap}
+th,td{border:1px solid #d9e1ec;padding:10px 12px;vertical-align:top;white-space:pre-wrap;overflow-wrap:anywhere}
 th:first-child,td:first-child{min-width:180px}
 th:not(:first-child),td:not(:first-child){min-width:110px}
+/* Three-column financial statements should fit the mobile viewport.
+   Wider outputs retain horizontal scrolling. */
+.tableWrap.compact{overflow-x:hidden}
+.tableWrap.compact table{width:100%;min-width:100%;max-width:100%;table-layout:fixed}
+.tableWrap.compact th:first-child,.tableWrap.compact td:first-child{width:56%;min-width:0}
+.tableWrap.compact th:not(:first-child),.tableWrap.compact td:not(:first-child){width:22%;min-width:0;text-align:right;white-space:normal;word-break:break-word}
+.tableWrap.compact th:first-child{text-align:left}
+@media(max-width:650px){
+ .tableWrap.compact th,.tableWrap.compact td{padding:9px 8px;font-size:13px;line-height:1.25}
+}
 th{background:#eef4fb;position:sticky;top:0;z-index:1}
 .hidden{display:none}
 @media(max-width:650px){
@@ -69,7 +79,7 @@ th{background:#eef4fb;position:sticky;top:0;z-index:1}
 <section class="card">
 <h1>Excel Financial Orientation Converter</h1>
 <div class="sub">Convert financial/reporting Excel, CSV and PDF between <b>Particulars ↓ + Dates/Years →</b> and <b>Dates/Years ↓ + Particulars →</b>.</div>
-<div class="badge">Version 8.5.8 • Financial Table Orientation Fix</div>
+<div class="badge">Version 8.5.9 • Financial Table & Mobile Preview Fix</div>
 </section>
 
 <section class="card">
@@ -106,7 +116,7 @@ th{background:#eef4fb;position:sticky;top:0;z-index:1}
 <button class="primary" id="convert" disabled>Convert &amp; Preview</button>
 <button class="secondary" id="reset">Reset</button>
 </div>
-<p class="note">PDF extraction is performed locally in the browser. Version 8.5.8 keeps the complete reconstructed financial table as logical records and detects the actual financial-table structure before orientation conversion. It groups text by visual Y position and uses X positions to form cells, reducing the chance that multi-word particulars become separate columns. Scanned/image-only PDFs still require OCR. Financial PDFs are first identified as a logical table before orientation conversion.</p>
+<p class="note">PDF extraction is performed locally in the browser. Version 8.5.9 keeps the complete reconstructed financial table as logical records and detects the actual financial-table structure before orientation conversion. It groups text by visual Y position and uses X positions to form cells, reducing the chance that multi-word particulars become separate columns. Scanned/image-only PDFs still require OCR. Financial PDFs are first identified as a logical table before orientation conversion.</p>
 </section>
 
 <section class="card hidden" id="previewCard">
@@ -485,7 +495,7 @@ function detectFinancialTable(rows){
   /*
    * 3. Horizontal-header candidate.
    *
-   * v8.5.8 FIX:
+   * v8.5.9 FIX:
    * The earlier detector stopped after only two evidence rows. That could
    * turn a valid 20-row × 3-column financial table into a 3-row × 3-column
    * preview. This version retains the COMPLETE contiguous table.
@@ -565,7 +575,7 @@ function orientPdfRows(rows, mode){
   const {table,kind}=getPdfBaseTable(rows);
   if(!table.length)return [];
 
-  /* Version 8.5.8: if PDF reconstruction has already produced the normal
+  /* Version 8.5.9: if PDF reconstruction has already produced the normal
      financial layout (Particulars in column 1, dates across columns), do not
      accidentally transpose it into 3 × N merely because the orientation
      selector's previous default was column-first. */
@@ -666,7 +676,7 @@ $("convert").onclick=async()=>{
       const detected=getPdfBaseTable(sourceRows);
       if(detected.kind==="financial"){
         const base=detected.table;
-        /* Version 8.5.8: header recognition is diagnostic, never fatal.
+        /* Version 8.5.9: header recognition is diagnostic, never fatal.
            A structurally valid financial table may have a partially reconstructed
            header, especially with PDF text emitted in separate visual records. */
         const rowsCount=base.length;
@@ -709,7 +719,11 @@ function render(a){
   const t=$("preview");
   t.innerHTML="";
   const tableWrap=t.closest(".tableWrap");
-  if(tableWrap) tableWrap.scrollLeft=0;
+  if(tableWrap){
+    tableWrap.scrollLeft=0;
+    const columnCount=Math.max(...a.map(r=>r.length),0);
+    tableWrap.classList.toggle("compact",columnCount<=6);
+  }
   if(!a.length){
     $("count").textContent="0 rows × 0 columns";
     const hint=$("previewHint");
@@ -783,13 +797,13 @@ function download(kind){
     XLSX.utils.book_append_sheet(wb,ws,"Converted");
 
     /* SheetJS writeFile handles the platform-specific file save. */
-    XLSX.writeFile(wb,`${name}_converted_v8.5.8.xlsx`);
+    XLSX.writeFile(wb,`${name}_converted_v8.5.9.xlsx`);
     setStatus("Excel file prepared from the same Preview data.");
   }else{
     const ws=XLSX.utils.aoa_to_sheet(data);
     const csv=XLSX.utils.sheet_to_csv(ws);
     const blob=new Blob(["\ufeff"+csv],{type:"text/csv;charset=utf-8"});
-    saveBlob(blob,`${name}_converted_v8.5.8.csv`);
+    saveBlob(blob,`${name}_converted_v8.5.9.csv`);
     setStatus("CSV file prepared from the same Preview data.");
   }
 }
