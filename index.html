@@ -750,13 +750,13 @@ function download(kind){
     XLSX.utils.book_append_sheet(wb,ws,"Converted");
 
     /* SheetJS writeFile handles the platform-specific file save. */
-    XLSX.writeFile(wb,`${name}_converted_v8.5.3.xlsx`);
+    XLSX.writeFile(wb,`${name}_converted_v8.5.4.xlsx`);
     setStatus("Excel file prepared from the same Preview data.");
   }else{
     const ws=XLSX.utils.aoa_to_sheet(data);
     const csv=XLSX.utils.sheet_to_csv(ws);
     const blob=new Blob(["\ufeff"+csv],{type:"text/csv;charset=utf-8"});
-    saveBlob(blob,`${name}_converted_v8.5.3.csv`);
+    saveBlob(blob,`${name}_converted_v8.5.4.csv`);
     setStatus("CSV file prepared from the same Preview data.");
   }
 }
