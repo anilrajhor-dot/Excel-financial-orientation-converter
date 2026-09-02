@@ -69,7 +69,7 @@ th{background:#eef4fb;position:sticky;top:0;z-index:1}
 <section class="card">
 <h1>Excel Financial Orientation Converter</h1>
 <div class="sub">Convert financial/reporting Excel, CSV and PDF between <b>Particulars ↓ + Dates/Years →</b> and <b>Dates/Years ↓ + Particulars →</b>.</div>
-<div class="badge">Version 8.5.7 • Financial Table Structure Fix</div>
+<div class="badge">Version 8.5.8 • Financial Table Orientation Fix</div>
 </section>
 
 <section class="card">
@@ -88,8 +88,8 @@ th{background:#eef4fb;position:sticky;top:0;z-index:1}
 <div>
 <label for="orientation">Orientation</label>
 <select id="orientation">
+<option value="left-down" selected>Particulars ↓ + Dates/Years →</option>
 <option value="down-right">Dates/Years ↓ + Particulars →</option>
-<option value="left-down">Particulars ↓ + Dates/Years →</option>
 </select>
 </div>
 <div id="pdfModeBox">
@@ -106,7 +106,7 @@ th{background:#eef4fb;position:sticky;top:0;z-index:1}
 <button class="primary" id="convert" disabled>Convert &amp; Preview</button>
 <button class="secondary" id="reset">Reset</button>
 </div>
-<p class="note">PDF extraction is performed locally in the browser. Version 8.5.7 keeps the complete reconstructed financial table as logical records and detects the actual financial-table structure before orientation conversion. It groups text by visual Y position and uses X positions to form cells, reducing the chance that multi-word particulars become separate columns. Scanned/image-only PDFs still require OCR. Financial PDFs are first identified as a logical table before orientation conversion.</p>
+<p class="note">PDF extraction is performed locally in the browser. Version 8.5.8 keeps the complete reconstructed financial table as logical records and detects the actual financial-table structure before orientation conversion. It groups text by visual Y position and uses X positions to form cells, reducing the chance that multi-word particulars become separate columns. Scanned/image-only PDFs still require OCR. Financial PDFs are first identified as a logical table before orientation conversion.</p>
 </section>
 
 <section class="card hidden" id="previewCard">
@@ -485,7 +485,7 @@ function detectFinancialTable(rows){
   /*
    * 3. Horizontal-header candidate.
    *
-   * v8.5.7 FIX:
+   * v8.5.8 FIX:
    * The earlier detector stopped after only two evidence rows. That could
    * turn a valid 20-row × 3-column financial table into a 3-row × 3-column
    * preview. This version retains the COMPLETE contiguous table.
@@ -545,13 +545,35 @@ function getPdfBaseTable(rows){
   return {table:base, kind:"row-first"};
 }
 
+function looksLikeFinancialMatrix(rows){
+  const rs=normalise(rows);
+  if(rs.length<3)return false;
+  const cols=Math.max(...rs.map(r=>r.length),0);
+  if(cols<2 || cols>6)return false;
+  const first=rs[0].map(clean);
+  const hasPart=first.some(isParticularsHeader);
+  const dateHeaders=first.filter(looksLikeDateYear).length;
+  const firstColDates=rs.slice(1,4).filter(r=>looksLikeDateYear(r[0])).length;
+  const numericCells=rs.slice(1).reduce((n,r)=>n+r.slice(1).filter(isAmountCell).length,0);
+  const likelyFinancialLabels=rs.slice(1).filter(r=>/\b(revenue|sales|cost|profit|expense|assets|liabilit|capital|reserves|debtors|creditors|inventory|stock|cash|bank|finance|depreciation|tax)\b/i.test(clean(r[0]))).length;
+  return (hasPart && dateHeaders>=1 && numericCells>=2) ||
+         (firstColDates>=2 && numericCells>=2) ||
+         (hasPart && likelyFinancialLabels>=2 && numericCells>=2);
+}
+
 function orientPdfRows(rows, mode){
   const {table,kind}=getPdfBaseTable(rows);
   if(!table.length)return [];
 
+  /* Version 8.5.8: if PDF reconstruction has already produced the normal
+     financial layout (Particulars in column 1, dates across columns), do not
+     accidentally transpose it into 3 × N merely because the orientation
+     selector's previous default was column-first. */
+  if(looksLikeFinancialMatrix(table)){
+    return mode==="down-right" ? transpose(table) : table;
+  }
+
   if(kind==="financial"){
-    /* The logical financial table is established FIRST.
-       Only then apply the selected orientation. */
     return mode==="down-right" ? transpose(table) : table;
   }
 
@@ -562,8 +584,6 @@ function orientPdfRows(rows, mode){
     return table.map(r=>[r[0]??""]);
   }
 
-  /* For genuinely multi-field reconstructed rows, retain the existing
-     orientation behaviour. */
   return mode==="down-right" ? transpose(table) : table;
 }
 
@@ -646,7 +666,7 @@ $("convert").onclick=async()=>{
       const detected=getPdfBaseTable(sourceRows);
       if(detected.kind==="financial"){
         const base=detected.table;
-        /* Version 8.5.7: header recognition is diagnostic, never fatal.
+        /* Version 8.5.8: header recognition is diagnostic, never fatal.
            A structurally valid financial table may have a partially reconstructed
            header, especially with PDF text emitted in separate visual records. */
         const rowsCount=base.length;
@@ -763,13 +783,13 @@ function download(kind){
     XLSX.utils.book_append_sheet(wb,ws,"Converted");
 
     /* SheetJS writeFile handles the platform-specific file save. */
-    XLSX.writeFile(wb,`${name}_converted_v8.5.7.xlsx`);
+    XLSX.writeFile(wb,`${name}_converted_v8.5.8.xlsx`);
     setStatus("Excel file prepared from the same Preview data.");
   }else{
     const ws=XLSX.utils.aoa_to_sheet(data);
     const csv=XLSX.utils.sheet_to_csv(ws);
     const blob=new Blob(["\ufeff"+csv],{type:"text/csv;charset=utf-8"});
-    saveBlob(blob,`${name}_converted_v8.5.7.csv`);
+    saveBlob(blob,`${name}_converted_v8.5.8.csv`);
     setStatus("CSV file prepared from the same Preview data.");
   }
 }
