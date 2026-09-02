@@ -48,7 +48,7 @@ button:disabled{opacity:.45;cursor:not-allowed}
 .previewHint{color:var(--muted);font-size:13px;font-weight:700;margin-top:8px}.previewHint.hidden{display:none}
 .count{color:var(--muted);font-weight:800}
 .tableWrap{overflow:auto;overflow-x:auto;border:2px solid #d7e1ee;border-radius:20px;margin-top:10px;max-height:560px;background:#fff;-webkit-overflow-scrolling:touch}
-table{border-collapse:collapse;min-width:100%;width:max-content;table-layout:auto;font-size:14px}
+table{border-collapse:collapse;min-width:100%;width:max-content;max-width:none;table-layout:auto;font-size:14px}
 th,td{border:1px solid #d9e1ec;padding:10px 12px;vertical-align:top;white-space:pre-wrap}
 th:first-child,td:first-child{min-width:180px}
 th:not(:first-child),td:not(:first-child){min-width:110px}
@@ -69,7 +69,7 @@ th{background:#eef4fb;position:sticky;top:0;z-index:1}
 <section class="card">
 <h1>Excel Financial Orientation Converter</h1>
 <div class="sub">Convert financial/reporting Excel, CSV and PDF between <b>Particulars ↓ + Dates/Years →</b> and <b>Dates/Years ↓ + Particulars →</b>.</div>
-<div class="badge">Version 8.5.5 • Preview Scroll Fix</div>
+<div class="badge">Version 8.5.6 • Financial Table Structure Fix</div>
 </section>
 
 <section class="card">
@@ -106,7 +106,7 @@ th{background:#eef4fb;position:sticky;top:0;z-index:1}
 <button class="primary" id="convert" disabled>Convert &amp; Preview</button>
 <button class="secondary" id="reset">Reset</button>
 </div>
-<p class="note">PDF extraction is performed locally in the browser. Version 8.5.5 keeps reconstructed PDF rows as logical records and detects the actual financial-table structure before orientation conversion. It groups text by visual Y position and uses X positions to form cells, reducing the chance that multi-word particulars become separate columns. Scanned/image-only PDFs still require OCR. Financial PDFs are first identified as a logical table before orientation conversion.</p>
+<p class="note">PDF extraction is performed locally in the browser. Version 8.5.6 keeps the complete reconstructed financial table as logical records and detects the actual financial-table structure before orientation conversion. It groups text by visual Y position and uses X positions to form cells, reducing the chance that multi-word particulars become separate columns. Scanned/image-only PDFs still require OCR. Financial PDFs are first identified as a logical table before orientation conversion.</p>
 </section>
 
 <section class="card hidden" id="previewCard">
@@ -484,36 +484,48 @@ function detectFinancialTable(rows){
 
   /*
    * 3. Horizontal-header candidate.
-   * Keep this conservative: a genuine header row must contain the Particulars
-   * label and at least two date/year cells. This supports PDFs whose table
-   * header is already reconstructed horizontally.
+   *
+   * v8.5.6 FIX:
+   * The earlier detector stopped after only two evidence rows. That could
+   * turn a valid 20-row × 3-column financial table into a 3-row × 3-column
+   * preview. This version retains the COMPLETE contiguous table.
    */
-  for(let i=0;i<Math.min(rs.length,20);i++){
+  for(let i=0;i<Math.min(rs.length,30);i++){
     const r=rs[i];
     const p=r.findIndex(isParticularsHeader);
-    const dates=r.map((v,c)=>looksLikeDateYear(v)?c:-1).filter(c=>c>=0 && c!==p);
+    const dates=r.map((v,c)=>looksLikeDateYear(v)?c:-1)
+                 .filter(c=>c>=0 && c!==p);
+
     if(p<0 || dates.length<2) continue;
 
-    const used=[p,...dates.slice(0,2)];
-    const table=[used.map(c=>clean(r[c]||""))];
+    const c1=dates[0], c2=dates[1];
+    const table=[[clean(r[p]||""),clean(r[c1]||""),clean(r[c2]||"")]];
     let evidence=0;
+    let blanks=0;
 
     for(let j=i+1;j<rs.length;j++){
       const label=clean(rs[j][p]||"");
-      const v1=clean(rs[j][dates[0]]||"");
-      const v2=clean(rs[j][dates[1]]||"");
+      const v1=clean(rs[j][c1]||"");
+      const v2=clean(rs[j][c2]||"");
 
-      if(!label && !v1 && !v2) continue;
-      if(isParticularsHeader(label)) continue;
+      if(!label && !v1 && !v2){
+        blanks++;
+        if(blanks<=1) continue;
+        break;
+      }
+      blanks=0;
+
+      if(isParticularsHeader(label) || looksLikeDateYear(label)) break;
 
       if(label || isAmountCell(v1) || isAmountCell(v2)){
         table.push([label,v1,v2]);
         if(isAmountCell(v1) || isAmountCell(v2)) evidence++;
+      }else{
+        break;
       }
-      if(evidence>=2 && table.length>=3) break;
     }
 
-    if(evidence>=2){
+    if(evidence>=2 && table.length>=3){
       return normalise(table);
     }
   }
@@ -744,13 +756,13 @@ function download(kind){
     XLSX.utils.book_append_sheet(wb,ws,"Converted");
 
     /* SheetJS writeFile handles the platform-specific file save. */
-    XLSX.writeFile(wb,`${name}_converted_v8.5.3.xlsx`);
+    XLSX.writeFile(wb,`${name}_converted_v8.5.6.xlsx`);
     setStatus("Excel file prepared from the same Preview data.");
   }else{
     const ws=XLSX.utils.aoa_to_sheet(data);
     const csv=XLSX.utils.sheet_to_csv(ws);
     const blob=new Blob(["\ufeff"+csv],{type:"text/csv;charset=utf-8"});
-    saveBlob(blob,`${name}_converted_v8.5.3.csv`);
+    saveBlob(blob,`${name}_converted_v8.5.6.csv`);
     setStatus("CSV file prepared from the same Preview data.");
   }
 }
