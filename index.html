@@ -66,7 +66,7 @@ th{background:#eef4fb;position:sticky;top:0;z-index:1}
 <section class="card">
 <h1>Excel Financial Orientation Converter</h1>
 <div class="sub">Convert financial/reporting Excel, CSV and PDF between <b>Particulars ↓ + Dates/Years →</b> and <b>Dates/Years ↓ + Particulars →</b>.</div>
-<div class="badge">Version 8.3 • PDF Reconstructed-Row Structure Fix</div>
+<div class="badge">Version 8.4 • PDF Logical Row & Field Handling Fix</div>
 </section>
 
 <section class="card">
@@ -336,15 +336,29 @@ function orientPdfRows(rows, mode){
   const cleanRows=normalise(rows);
   if(!cleanRows.length)return [];
 
-  const sourceRowCount=cleanRows.length;
-  const sourceColCount=Math.max(...cleanRows.map(r=>r.length),0);
+  /* A PDF reconstructed row is a logical record. Never use a generic
+     transpose when every source record currently has one field: doing so
+     changes N records into one record with N columns.
 
-  if(sourceRowCount>1 && sourceColCount<=1){
-    /* No period/date columns exist in the reconstructed data, so there is
-       nothing meaningful to transpose. Preserve every reconstructed row. */
+     For a genuine multi-field PDF table, transpose only the table itself.
+     For a text/narrative PDF such as Annexure_B, preserve the reconstructed
+     records exactly and report that no date/year field was detected rather
+     than inventing columns. */
+  const sourceColCount=Math.max(...cleanRows.map(r=>r.length),0);
+  const hasDateYearField=cleanRows.some(r=>r.some(v=>{
+    const x=String(v).trim();
+    return /\b(?:19\d{2}|20\d{2})\b/.test(x) ||
+           /\bFY\s*\d{2,4}\b/i.test(x) ||
+           /\b(?:Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)[a-z]*\s+\d{4}\b/i.test(x) ||
+           /\b\d{1,2}[\/.\-]\d{1,2}[\/.\-]\d{2,4}\b/.test(x);
+  }));
+
+  if(sourceColCount<=1){
     return cleanRows.map(r=>[r[0]??""]);
   }
 
+  /* Multi-field reconstructed rows are already tabular; transpose only
+     when the selected orientation actually requires it. */
   return mode==="down-right" ? transpose(cleanRows) : cleanRows;
 }
 
@@ -426,7 +440,10 @@ $("convert").onclick=async()=>{
     render(data);
     progress(100);
     $("previewCard").classList.remove("hidden");
-    setStatus(`Conversion complete. Preview contains ${data.length} rows.`);
+    const pdfNotice = ext==="pdf" && Math.max(...data.map(r=>r.length),0)<=1
+      ? " No date/year columns were detected, so reconstructed PDF rows were preserved rather than transposed."
+      : "";
+    setStatus(`Conversion complete. Preview contains ${data.length} rows.${pdfNotice}`);
     window.scrollTo({top:document.body.scrollHeight,behavior:"smooth"});
   }catch(e){
     console.error(e);
@@ -507,13 +524,13 @@ function download(kind){
     XLSX.utils.book_append_sheet(wb,ws,"Converted");
 
     /* SheetJS writeFile handles the platform-specific file save. */
-    XLSX.writeFile(wb,`${name}_converted_v8.3.xlsx`);
+    XLSX.writeFile(wb,`${name}_converted_v8.4.xlsx`);
     setStatus("Excel file prepared for download.");
   }else{
     const ws=XLSX.utils.aoa_to_sheet(data);
     const csv=XLSX.utils.sheet_to_csv(ws);
     const blob=new Blob(["\ufeff"+csv],{type:"text/csv;charset=utf-8"});
-    saveBlob(blob,`${name}_converted_v8.3.csv`);
+    saveBlob(blob,`${name}_converted_v8.4.csv`);
     setStatus("CSV file prepared for download.");
   }
 }
