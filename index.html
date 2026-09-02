@@ -3,192 +3,438 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
-<meta name="theme-color" content="#1a9b4a">
-<link rel="manifest" href="./manifest.json">
-<title>Excel Financial Orientation Converter — Version 8.0</title>
+<meta name="theme-color" content="#1f9d4c">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<link rel="manifest" href="manifest.json">
+<title>Excel Financial Orientation Converter</title>
+
+<!-- Excel/CSV engine -->
+<script src="https://cdn.sheetjs.com/xlsx-0.20.3/package/dist/xlsx.full.min.js"></script>
+
+<!-- Use the classic PDF.js build for maximum Safari/iPhone compatibility.
+     The worker URL is explicitly matched to the PDF.js version. -->
+<script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
+
 <style>
-:root{--navy:#17243d;--muted:#647793;--bg:#eef4fa;--green:#169b4a;--blue:#2d67dc;--line:#d7e2ef}
-*{box-sizing:border-box}body{margin:0;background:var(--bg);font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Arial,sans-serif;color:var(--navy)}
-main{max-width:850px;margin:auto;padding:28px 18px 60px}
-.card{background:#fff;border-radius:30px;padding:28px;margin:0 0 22px;box-shadow:0 8px 30px #14213d10}
-h1{font-size:42px;line-height:1.08;margin:0 0 14px;font-weight:800}h2{font-size:30px;margin:0 0 18px}h3{font-size:22px;margin:0 0 12px}
+:root{--bg:#f2f6fb;--card:#fff;--ink:#17243d;--muted:#64758f;--line:#dbe4ef;--blue:#2d66d9;--green:#169447}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--ink);font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Arial,sans-serif}
+.wrap{max-width:920px;margin:0 auto;padding:28px 18px 60px}
+.card{background:var(--card);border-radius:30px;padding:28px;margin:18px 0;box-shadow:0 8px 28px rgba(25,50,90,.06)}
+h1{font-size:42px;line-height:1.05;margin:0 0 18px;font-weight:800}
+h2{font-size:27px;margin:0 0 12px}
 .sub{font-size:20px;line-height:1.45;color:var(--muted);font-weight:600}
-.badge{display:inline-block;background:#e8f0ff;padding:10px 18px;border-radius:22px;font-weight:800;margin-top:12px}
-.drop{border:4px dashed #9bbbe5;border-radius:26px;padding:42px 18px;text-align:center;background:#f8fbff;cursor:pointer}
-.drop strong{font-size:30px;display:block}.drop span{font-size:20px;color:var(--muted);font-weight:700}
-input[type=file]{display:none}.status{margin-top:18px;background:#eaf8ef;color:#176f39;padding:18px 20px;border-radius:20px;font-size:19px;font-weight:700}
-.controls label{display:block;font-size:20px;font-weight:800;margin:16px 0 8px}
-select,button{width:100%;min-height:58px;border-radius:18px;border:2px solid var(--line);padding:12px 16px;font-size:18px;font-weight:800;background:#fff;color:var(--navy)}
-button{cursor:pointer}.primary{background:var(--green);border-color:var(--green);color:white}.secondary{background:#e8eef8;color:#244b78;border-color:#e8eef8}
-.rowbuttons{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-top:16px}
-.note{font-size:17px;line-height:1.55;color:var(--muted);font-weight:600}
-.preview-wrap{overflow:auto;border:2px solid var(--line);border-radius:20px;max-height:65vh}
-table{border-collapse:collapse;background:white;min-width:100%}th,td{border:1px solid #d8e1eb;padding:9px 11px;vertical-align:top;text-align:left;white-space:pre-wrap}th{background:#edf3fb;font-weight:800;position:sticky;top:0;z-index:1}
-.empty{padding:24px;text-align:center;color:var(--muted);font-weight:700}
-.small{font-size:14px;color:var(--muted)}.hidden{display:none!important}
-@media(max-width:600px){main{padding:16px 12px 40px}.card{padding:22px;border-radius:24px}h1{font-size:34px}h2{font-size:27px}.rowbuttons{grid-template-columns:1fr}}
+.badge{display:inline-block;background:#e8f0ff;border-radius:999px;padding:9px 16px;font-weight:800;margin-top:16px}
+.drop{border:3px dashed #9bbbe4;background:#f7faff;border-radius:24px;padding:38px 18px;text-align:center;cursor:pointer}
+.drop strong{font-size:28px;display:block}
+.drop span{font-size:18px;color:var(--muted);font-weight:700}
+input[type=file]{display:none}
+.status{margin-top:18px;padding:18px 20px;border-radius:20px;background:#eef8f1;color:#176d36;font-weight:700;line-height:1.45}
+.status.error{background:#fff0f0;color:#9b2727}
+.progress{height:10px;background:#dfe9f6;border-radius:99px;overflow:hidden;margin-top:14px}
+.progress>i{display:block;height:100%;width:0;background:#2d66d9;transition:width .15s}
+label{display:block;font-weight:800;font-size:18px;margin:15px 0 8px}
+select,button{font:inherit}
+select{width:100%;padding:14px 16px;border:2px solid var(--line);border-radius:16px;background:white;font-weight:700;color:var(--ink)}
+.row{display:flex;gap:14px;align-items:end}
+.row>div{flex:1}
+.btns{display:flex;gap:12px;margin-top:20px;flex-wrap:wrap}
+button{border:0;border-radius:18px;padding:15px 22px;font-weight:800;cursor:pointer}
+button.primary{background:var(--green);color:#fff}
+button.secondary{background:#e8eef8;color:#244a78}
+button:disabled{opacity:.45;cursor:not-allowed}
+.note{color:var(--muted);font-weight:600;line-height:1.45}
+.previewHead{display:flex;justify-content:space-between;gap:10px;align-items:end}
+.count{color:var(--muted);font-weight:800}
+.tableWrap{overflow:auto;border:2px solid #d7e1ee;border-radius:20px;margin-top:10px;max-height:560px;background:#fff}
+table{border-collapse:collapse;min-width:100%;font-size:14px}
+th,td{border:1px solid #d9e1ec;padding:10px 12px;vertical-align:top;white-space:pre-wrap}
+th{background:#eef4fb;position:sticky;top:0;z-index:1}
+.hidden{display:none}
+@media(max-width:650px){
+ h1{font-size:34px}
+ .card{padding:22px;border-radius:26px}
+ .row{display:block}
+ .btns button{width:100%}
+ .previewHead{align-items:start;flex-direction:column}
+}
 </style>
 </head>
 <body>
-<main>
+<div class="wrap">
+
 <section class="card">
 <h1>Excel Financial Orientation Converter</h1>
-<div class="sub">Convert financial/reporting Excel, CSV or PDF between <b>Dates/Years ↓ + Particulars →</b> and <b>Particulars → + Dates/Years ↓</b>, while retaining useful financial-statement information.</div>
-<div class="badge">Version 8.0 • PDF Row-First + Export Fix</div>
+<div class="sub">Convert financial/reporting Excel, CSV and PDF between <b>Particulars ↓ + Dates/Years →</b> and <b>Dates/Years ↓ + Particulars →</b>.</div>
+<div class="badge">Version 8.1 • PDF Row-First + Worker &amp; Export Fix</div>
 </section>
 
 <section class="card">
-<div id="drop" class="drop" role="button" tabindex="0">
-<strong>Upload Excel / CSV / PDF</strong><span>.xlsx, .xls, .csv or .pdf</span>
+<div class="drop" id="drop">
+<strong>Upload Excel / CSV / PDF</strong>
+<span>.xlsx, .xls, .csv or .pdf</span>
 </div>
-<input id="file" type="file" accept=".xlsx,.xls,.csv,.pdf">
+<input id="file" type="file" accept=".xlsx,.xls,.csv,.pdf,application/pdf">
 <div id="status" class="status hidden"></div>
+<div class="progress hidden" id="prog"><i></i></div>
 </section>
 
-<section class="card controls">
+<section class="card">
 <h2>Output orientation</h2>
+<div class="row">
+<div>
 <label for="orientation">Orientation</label>
 <select id="orientation">
-<option value="down">Dates/Years ↓ + Particulars →</option>
-<option value="across">Particulars → + Dates/Years ↓</option>
+<option value="down-right">Dates/Years ↓ + Particulars →</option>
+<option value="left-down">Particulars ↓ + Dates/Years →</option>
 </select>
-
-<label for="pdfmode">PDF table mode</label>
-<select id="pdfmode">
+</div>
+<div id="pdfModeBox">
+<label for="pdfMode">PDF table mode</label>
+<select id="pdfMode">
 <option value="auto">Auto detect — row-first</option>
-<option value="row">Row-first reconstruction</option>
-<option value="lines">Visual text lines</option>
+<option value="row14">Financial table — prioritise rows</option>
+<option value="column14">Column-first / wide table</option>
+<option value="raw">Raw text grid</option>
 </select>
-
-<div class="rowbuttons">
-<button id="convert" class="primary" disabled>Convert &amp; Preview</button>
-<button id="reset" class="secondary">Reset</button>
 </div>
-<p class="note">PDF extraction is performed locally in the browser. Version 8 keeps reconstructed PDF rows intact before orientation conversion. It groups text by visual Y position and uses X positions only to form cells, reducing the chance that multi-word particulars become separate columns. Scanned/image-only PDFs still require OCR.</p>
+</div>
+<div class="btns">
+<button class="primary" id="convert" disabled>Convert &amp; Preview</button>
+<button class="secondary" id="reset">Reset</button>
+</div>
+<p class="note">PDF extraction is performed locally in the browser. Version 8.1 keeps reconstructed PDF rows intact before orientation conversion. It groups text by visual Y position and uses X positions to form cells, reducing the chance that multi-word particulars become separate columns. Scanned/image-only PDFs still require OCR.</p>
 </section>
 
-<section class="card">
-<h2>Preview <span id="dims" class="small">0 rows × 0 columns</span></h2>
-<div id="preview" class="preview-wrap"><div class="empty">Upload a file and press Convert &amp; Preview.</div></div>
-<div class="rowbuttons">
-<button id="xlsx" class="primary" disabled>Download Excel</button>
-<button id="csv" class="secondary" disabled>Download CSV</button>
+<section class="card hidden" id="previewCard">
+<div class="previewHead"><h2>Preview</h2><div class="count" id="count"></div></div>
+<div class="tableWrap"><table id="preview"></table></div>
+<div class="btns">
+<button class="primary" id="xlsxBtn">Download Excel</button>
+<button class="secondary" id="csvBtn">Download CSV</button>
 </div>
-<p id="debug" class="small"></p>
 </section>
-</main>
+</div>
 
-<script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/4.4.168/pdf.min.mjs" type="module"></script>
 <script>
-const state={file:null,rows:[],data:[]};
-const $=id=>document.getElementById(id);
-const status=(msg,ok=true)=>{ $("status").textContent=msg;$("status").classList.remove("hidden");$("status").style.background=ok?"#eaf8ef":"#fff0f0";$("status").style.color=ok?"#176f39":"#9b2020"; };
-const clean=s=>String(s??"").replace(/\s+/g," ").trim();
+"use strict";
 
-$("drop").onclick=()=> $("file").click();
-$("drop").onkeydown=e=>{if(e.key==="Enter"||e.key===" ")$("file").click()};
-$("file").onchange=e=>{state.file=e.target.files[0]||null;$("convert").disabled=!state.file;if(state.file)status("Loaded: "+state.file.name+". Press Convert & Preview.")};
+/* PDF.js worker fix:
+   PDF.js 3.11.174 is loaded above and this worker is exactly the same version. */
+pdfjsLib.GlobalWorkerOptions.workerSrc =
+  "https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js";
 
-$("reset").onclick=()=>{state.file=null;state.rows=[];state.data=[];$("file").value="";$("convert").disabled=true;$("xlsx").disabled=true;$("csv").disabled=true;$("preview").innerHTML='<div class="empty">Upload a file and press Convert & Preview.</div>';$("dims").textContent="0 rows × 0 columns";$("debug").textContent="";$("status").classList.add("hidden")};
+const $ = id => document.getElementById(id);
+let fileObj = null;
+let data = [];
+let pdfPages = 0;
 
-async function getPDF(){
-  const pdfjs=window.pdfjsLib;
-  if(!pdfjs) throw new Error("PDF engine is still loading. Please wait a moment and try again.");
-  const buf=await state.file.arrayBuffer();
-  const pdf=await pdfjs.getDocument({data:buf}).promise;
+function setStatus(msg, err=false){
+  const el=$("status");
+  el.textContent=msg;
+  el.classList.remove("hidden");
+  el.classList.toggle("error",err);
+}
+function progress(v){
+  $("prog").classList.remove("hidden");
+  $("prog").firstElementChild.style.width=Math.max(0,Math.min(100,v))+"%";
+}
+function clean(s){return String(s??"").replace(/\s+/g," ").trim();}
+
+function reset(){
+  fileObj=null; data=[]; pdfPages=0;
+  $("file").value="";
+  $("convert").disabled=true;
+  $("previewCard").classList.add("hidden");
+  $("status").classList.add("hidden");
+  $("prog").classList.add("hidden");
+  $("pdfModeBox").classList.remove("hidden");
+}
+$("drop").onclick=()=>$("file").click();
+$("file").onchange=e=>loadFile(e.target.files[0]);
+$("drop").addEventListener("dragover",e=>e.preventDefault());
+$("drop").addEventListener("drop",e=>{
+  e.preventDefault(); loadFile(e.dataTransfer.files[0]);
+});
+$("reset").onclick=reset;
+
+async function loadFile(f){
+  if(!f)return;
+  const ext=f.name.toLowerCase().split(".").pop();
+  if(!["xlsx","xls","csv","pdf"].includes(ext)){
+    setStatus("Unsupported file type.",true); return;
+  }
+  fileObj=f; data=[];
+  $("convert").disabled=false;
+  $("previewCard").classList.add("hidden");
+  progress(10);
+
+  if(ext==="pdf"){
+    $("pdfModeBox").classList.remove("hidden");
+    setStatus(`Loaded: ${f.name}. Reading PDF text and detecting table structure…`);
+    try{
+      const r=await extractPDF(f);
+      data=r;
+      progress(100);
+      if(r.length){
+        setStatus(`Loaded: ${f.name}. Detected ${r.length} reconstructed rows. Choose the orientation and press Convert & Preview.`);
+      }else{
+        setStatus(`Loaded: ${f.name}, but no text rows were extracted. This may be a scanned/image-only PDF and requires OCR.`,true);
+      }
+    }catch(e){
+      console.error(e);
+      setStatus("PDF could not be read: "+(e.message||e),true);
+    }
+  }else{
+    $("pdfModeBox").classList.add("hidden");
+    setStatus(`Loaded: ${f.name}. Ready to convert.`);
+    progress(100);
+  }
+}
+
+async function extractPDF(file){
+  const buf=await file.arrayBuffer();
+  const pdf=await pdfjsLib.getDocument({data:buf}).promise;
+  pdfPages=pdf.numPages;
   const all=[];
+
   for(let p=1;p<=pdf.numPages;p++){
-    const page=await pdf.getPage(p), content=await page.getTextContent(), vp=page.getViewport({scale:1});
-    const items=content.items.map((it,i)=>({t:clean(it.str),x:it.transform[4],y:it.transform[5],w:it.width||0,h:Math.abs(it.transform[3])||10,i}))
-      .filter(a=>a.t);
-    // Group text items into visual lines by Y tolerance.
+    const page=await pdf.getPage(p);
+    const tc=await page.getTextContent({includeMarkedContent:false});
+    const items=tc.items
+      .filter(x=>x.str&&x.str.trim())
+      .map(x=>{
+        const t=x.transform;
+        return {s:x.str.trim(),x:t[4],y:t[5],w:x.width||0,h:Math.abs(t[3]||t[0]||10)};
+      });
+
+    /* Group words into visual lines using Y position. */
+    items.sort((a,b)=>b.y-a.y||a.x-b.x);
     const lines=[];
     for(const it of items){
-      let line=lines.find(l=>Math.abs(l.y-it.y)<=Math.max(3,it.h*.55));
-      if(!line){line={y:it.y,items:[]};lines.push(line)}
-      line.items.push(it); line.y=(line.y+it.y)/2;
+      let line=lines.find(l=>Math.abs(l.y-it.y)<=Math.max(2.5,it.h*.28));
+      if(!line){line={y:it.y,items:[]};lines.push(line);}
+      line.items.push(it);
     }
     lines.sort((a,b)=>b.y-a.y);
-    for(const l of lines){
-      l.items.sort((a,b)=>a.x-b.x);
-      // Keep each PDF text item as a candidate cell, but merge nearby fragments.
-      const cells=[];
-      for(const it of l.items){
-        const prev=cells[cells.length-1];
-        if(prev && it.x-(prev.x+prev.w) <= Math.max(7,it.h*0.8)){
-          prev.t=clean(prev.t+" "+it.t); prev.w=(it.x+it.w)-prev.x;
-        }else cells.push({t:it.t,x:it.x,w:it.w});
+    all.push({
+      page:p,
+      lines:lines.map(l=>({y:l.y,items:l.items.sort((a,b)=>a.x-b.x)})),
+      width:page.view[2],
+      height:page.view[3]
+    });
+    progress(15+Math.round(70*p/pdf.numPages));
+  }
+  return reconstruct(all);
+}
+
+function reconstruct(pages){
+  /* Find repeated left-edge X positions, which are useful column anchors. */
+  const freq=new Map();
+  for(const pg of pages) for(const ln of pg.lines) for(const it of ln.items){
+    const key=Math.round(it.x/6)*6;
+    freq.set(key,(freq.get(key)||0)+1);
+  }
+
+  let anchors=[...freq.entries()]
+    .filter(([,n])=>n>=Math.max(2,Math.ceil(pages.length*.7)))
+    .map(([x])=>x).sort((a,b)=>a-b);
+
+  const merged=[];
+  for(const x of anchors){
+    if(!merged.length||x-merged[merged.length-1]>18) merged.push(x);
+    else merged[merged.length-1]=(merged[merged.length-1]+x)/2;
+  }
+  anchors=merged;
+
+  if(anchors.length>20) anchors=selectAnchors(anchors,freq,20);
+  if(anchors.length<2) anchors=[0];
+
+  const rows=[];
+  for(const pg of pages){
+    for(const ln of pg.lines){
+      const cells=Array(Math.max(1,anchors.length)).fill("");
+      for(const it of ln.items){
+        let idx=nearestAnchor(it.x,anchors);
+        if(it.x<anchors[0]-30)idx=0;
+        cells[idx]=clean((cells[idx]?cells[idx]+" ":"")+it.s);
       }
-      if(cells.length) all.push(cells.map(c=>c.t));
+      if(cells.some(Boolean)) rows.push(cells);
     }
   }
-  return all;
+
+  const cols=rows.length
+    ? rows[0].map((_,j)=>rows.some(r=>r[j]))
+    : [];
+
+  return rows.map(r=>cols.map((keep,j)=>keep?(r[j]||""):""))
+             .map(r=>r.filter((_,j)=>cols[j]));
 }
 
-async function getSpreadsheet(){
-  if(!window.XLSX) await loadScript("https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js");
-  const buf=await state.file.arrayBuffer();
-  const wb=XLSX.read(buf,{type:"array"});
-  const ws=wb.Sheets[wb.SheetNames[0]];
-  return XLSX.utils.sheet_to_json(ws,{header:1,defval:""}).map(r=>r.map(clean)).filter(r=>r.some(Boolean));
+function nearestAnchor(x,a){
+  let best=0,d=Infinity;
+  for(let i=0;i<a.length;i++){
+    const z=Math.abs(x-a[i]);
+    if(z<d){d=z;best=i;}
+  }
+  return best;
 }
-async function getCSV(){
-  const text=await state.file.text();
-  return text.split(/\r?\n/).map(line=>line.split(/,(?=(?:[^"]*"[^"]*")*[^"]*$)/).map(v=>clean(v.replace(/^"|"$/g,"")))).filter(r=>r.some(Boolean));
+function selectAnchors(a,freq,max){
+  return a.slice()
+    .sort((x,y)=>(freq.get(y)||0)-(freq.get(x)||0))
+    .slice(0,max)
+    .sort((x,y)=>x-y);
 }
-function loadScript(src){return new Promise((res,rej)=>{const s=document.createElement("script");s.src=src;s.onload=res;s.onerror=()=>rej(new Error("Could not load spreadsheet engine."));document.head.appendChild(s)})}
+function transpose(a){
+  if(!a.length)return[];
+  const n=Math.max(...a.map(r=>r.length),0);
+  return Array.from({length:n},(_,j)=>a.map(r=>r[j]??""));
+}
+function normalise(a){
+  const max=a.reduce((m,r)=>Math.max(m,r.length),0);
+  return a.map(r=>Array.from({length:max},(_,i)=>r[i]??""))
+          .filter(r=>r.some(v=>String(v).trim()!==""));
+}
 
-function normalise(rows){
-  const max=Math.max(0,...rows.map(r=>r.length));
-  return rows.map(r=>Array.from({length:max},(_,i)=>clean(r[i])));
+async function readOffice(){
+  const ext=fileObj.name.toLowerCase().split(".").pop();
+  const buf=await fileObj.arrayBuffer();
+
+  if(ext==="csv"){
+    const text=new TextDecoder().decode(buf);
+    const wb=XLSX.read(text,{type:"string"});
+    return XLSX.utils.sheet_to_json(
+      wb.Sheets[wb.SheetNames[0]],{header:1,raw:false,defval:""}
+    );
+  }
+
+  const wb=XLSX.read(buf,{type:"array",cellDates:true});
+  return XLSX.utils.sheet_to_json(
+    wb.Sheets[wb.SheetNames[0]],{header:1,raw:false,defval:""}
+  );
 }
-function transpose(rows){
-  if(!rows.length)return [];
-  const r=normalise(rows), m=r.length,n=r[0].length;
-  return Array.from({length:n},(_,j)=>Array.from({length:m},(_,i)=>r[i][j]||""));
-}
-function render(data){
-  data=normalise(data);state.data=data;
-  const r=data.length,c=Math.max(0,...data.map(x=>x.length));
-  $("dims").textContent=`${r} rows × ${c} columns`;
-  if(!r){$("preview").innerHTML='<div class="empty">No usable rows were produced. The source may be image-only or have no extractable text.</div>';return}
-  const table=document.createElement("table");
-  const thead=document.createElement("thead"),trh=document.createElement("tr");
-  for(const v of data[0]){const th=document.createElement("th");th.textContent=v;trh.appendChild(th)}
-  thead.appendChild(trh);table.appendChild(thead);
-  const tb=document.createElement("tbody");
-  for(const row of data.slice(1)){const tr=document.createElement("tr");for(const v of row){const td=document.createElement("td");td.textContent=v;tr.appendChild(td)}tb.appendChild(tr)}
-  table.appendChild(tb);$("preview").innerHTML="";$("preview").appendChild(table);
-}
+
 $("convert").onclick=async()=>{
-  if(!state.file)return;
-  $("convert").disabled=true;$("xlsx").disabled=true;$("csv").disabled=true;
   try{
-    let rows;
-    const ext=state.file.name.toLowerCase().split(".").pop();
-    if(ext==="pdf"){status("Reading PDF and reconstructing rows…");rows=await getPDF()}
-    else if(ext==="csv"){status("Reading CSV…");rows=await getCSV()}
-    else {status("Reading Excel…");rows=await getSpreadsheet()}
-    // Critical V8 fix: never pass an empty conversion array after successful extraction.
-    rows=normalise(rows);
-    if(!rows.length) throw new Error("No extractable table rows were found.");
-    state.rows=rows;
-    let out=$("orientation").value==="across"?transpose(rows):rows;
-    out=normalise(out);
-    if(!out.length) out=rows;
-    render(out);
-    status(`Loaded: ${state.file.name}. Detected ${rows.length} usable rows. Preview generated successfully.`);
-    $("xlsx").disabled=false;$("csv").disabled=false;
-    $("debug").textContent=`Source rows retained: ${rows.length}. Final preview: ${state.data.length} × ${Math.max(0,...state.data.map(r=>r.length))}.`;
-  }catch(e){console.error(e);status("Conversion failed: "+e.message,false);$("preview").innerHTML='<div class="empty">No preview available.</div>';$("dims").textContent="0 rows × 0 columns"}
-  finally{$("convert").disabled=false}
+    if(!fileObj)return;
+    progress(10);
+
+    const ext=fileObj.name.toLowerCase().split(".").pop();
+    if(ext!=="pdf"){
+      data=await readOffice();
+      progress(70);
+    }
+
+    const mode=$("orientation").value;
+    if(mode==="down-right") data=transpose(data);
+
+    data=normalise(data);
+
+    /* Never claim success when extraction produced no rows. */
+    if(!data.length){
+      $("previewCard").classList.add("hidden");
+      setStatus("Conversion failed: no usable rows were produced.",true);
+      progress(100);
+      return;
+    }
+
+    render(data);
+    progress(100);
+    $("previewCard").classList.remove("hidden");
+    setStatus(`Conversion complete. Preview contains ${data.length} rows.`);
+    window.scrollTo({top:document.body.scrollHeight,behavior:"smooth"});
+  }catch(e){
+    console.error(e);
+    $("previewCard").classList.add("hidden");
+    setStatus("Conversion failed: "+(e.message||e),true);
+    progress(100);
+  }
 };
-async function ensureXLSX(){if(!window.XLSX)await loadScript("https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js")}
-$("xlsx").onclick=async()=>{try{await ensureXLSX();const ws=XLSX.utils.aoa_to_sheet(state.data);const wb=XLSX.utils.book_new();XLSX.utils.book_append_sheet(wb,ws,"Converted");XLSX.writeFile(wb,"financial-orientation-converted-v8.xlsx")}catch(e){alert("Excel export failed: "+e.message)}};
-$("csv").onclick=()=>{const esc=v=>`"${String(v??"").replace(/"/g,'""')}"`;const text=state.data.map(r=>r.map(esc).join(",")).join("\r\n");const blob=new Blob(["\ufeff"+text],{type:"text/csv;charset=utf-8"});const a=document.createElement("a");a.href=URL.createObjectURL(blob);a.download="financial-orientation-converted-v8.csv";document.body.appendChild(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(a.href),1000)};
-</script>
-<script>
-if("serviceWorker" in navigator){window.addEventListener("load",()=>navigator.serviceWorker.register("./sw.js").catch(e=>console.warn("SW registration:",e)))}
+
+function render(a){
+  const t=$("preview");
+  t.innerHTML="";
+  if(!a.length){
+    $("count").textContent="0 rows × 0 columns";
+    return;
+  }
+  $("count").textContent=`${a.length} rows × ${a[0].length} columns`;
+
+  a.slice(0,200).forEach((r,i)=>{
+    const tr=document.createElement("tr");
+    r.forEach(v=>{
+      const c=document.createElement(i===0?"th":"td");
+      c.textContent=v;
+      tr.appendChild(c);
+    });
+    t.appendChild(tr);
+  });
+
+  if(a.length>200){
+    const tr=document.createElement("tr");
+    const td=document.createElement("td");
+    td.colSpan=a[0].length;
+    td.textContent=`Preview limited to first 200 rows. Download contains all ${a.length} rows.`;
+    tr.appendChild(td); t.appendChild(tr);
+  }
+}
+
+/* Safari-friendly Blob download.
+   The object URL is revoked only after a delay, not immediately after click. */
+function saveBlob(blob,filename){
+  const url=URL.createObjectURL(blob);
+  const a=document.createElement("a");
+  a.href=url;
+  a.download=filename;
+  a.rel="noopener";
+  document.body.appendChild(a);
+
+  let usedAnchor=false;
+  try{
+    a.click();
+    usedAnchor=true;
+  }catch(e){
+    console.warn("Anchor download failed",e);
+  }
+
+  setTimeout(()=>{
+    if(a.parentNode)a.parentNode.removeChild(a);
+    URL.revokeObjectURL(url);
+  },15000);
+
+  /* If download attribute is unavailable, open the Blob instead of losing it. */
+  if(!("download" in a) && !usedAnchor){
+    window.open(url,"_blank","noopener");
+  }
+}
+
+function download(kind){
+  if(!data.length){
+    setStatus("Nothing to download. Convert a file first.",true);
+    return;
+  }
+
+  const name=(fileObj?.name||"converted").replace(/\.[^.]+$/,"");
+
+  if(kind==="xlsx"){
+    const ws=XLSX.utils.aoa_to_sheet(data);
+    const wb=XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb,ws,"Converted");
+
+    /* SheetJS writeFile handles the platform-specific file save. */
+    XLSX.writeFile(wb,`${name}_converted_v8.1.xlsx`);
+    setStatus("Excel file prepared for download.");
+  }else{
+    const ws=XLSX.utils.aoa_to_sheet(data);
+    const csv=XLSX.utils.sheet_to_csv(ws);
+    const blob=new Blob(["\ufeff"+csv],{type:"text/csv;charset=utf-8"});
+    saveBlob(blob,`${name}_converted_v8.1.csv`);
+    setStatus("CSV file prepared for download.");
+  }
+}
+
+$("xlsxBtn").onclick=()=>download("xlsx");
+$("csvBtn").onclick=()=>download("csv");
 </script>
 </body>
 </html>
