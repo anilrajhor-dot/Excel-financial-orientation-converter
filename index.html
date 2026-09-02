@@ -142,6 +142,33 @@ function progress(v){
 }
 function clean(s){return String(s??"").replace(/\s+/g," ").trim();}
 
+/* Geometry helpers used by the existing PDF row reconstruction. */
+function nearestAnchor(x, anchors){
+  if(!anchors.length)return 0;
+  let best=0, dist=Math.abs(x-anchors[0]);
+  for(let i=1;i<anchors.length;i++){
+    const d=Math.abs(x-anchors[i]);
+    if(d<dist){dist=d;best=i;}
+  }
+  return best;
+}
+
+function selectAnchors(anchors, freq, maxCount){
+  return anchors
+    .slice()
+    .sort((a,b)=>(freq.get(b)||0)-(freq.get(a)||0) || a-b)
+    .slice(0,maxCount)
+    .sort((a,b)=>a-b);
+}
+
+function transpose(matrix){
+  if(!Array.isArray(matrix)||!matrix.length)return [];
+  const width=Math.max(...matrix.map(r=>Array.isArray(r)?r.length:0),0);
+  return Array.from({length:width},(_,c)=>
+    matrix.map(r=>Array.isArray(r)?(r[c]??""):"")
+  );
+}
+
 function reset(){
   fileObj=null; data=[]; pdfPages=0; sourceKind="";
   $("file").value="";
