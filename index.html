@@ -1,0 +1,180 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="theme-color" content="#2563eb">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<meta name="apple-mobile-web-app-title" content="Excel Converter">
+<link rel="manifest" href="./manifest.json">
+<link rel="apple-touch-icon" href="./icons/icon-192.png">
+<title>Excel Financial Orientation Converter v3.0</title>
+<script src="https://cdn.sheetjs.com/xlsx-0.20.3/package/dist/xlsx.full.min.js"></script>
+<style>
+*{box-sizing:border-box}body{margin:0;background:#f4f7fb;color:#172033;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Arial,sans-serif}
+main{max-width:1180px;margin:auto;padding:14px}.card{background:#fff;border-radius:16px;padding:18px;margin:12px 0;box-shadow:0 3px 18px #0001}
+h1{font-size:24px;margin:0 0 5px}.muted{color:#64748b;font-size:13px;line-height:1.5}.ver{display:inline-block;margin-top:8px;padding:4px 9px;border-radius:9px;background:#e8f0ff;font-size:12px;font-weight:700}
+.drop{border:2px dashed #9bb7d7;border-radius:14px;padding:28px;text-align:center;background:#f8fbff;cursor:pointer}.drop.drag{background:#eef6ff}
+input[type=file]{display:none}.grid{display:grid;grid-template-columns:repeat(4,1fr);gap:11px}.wide{grid-column:span 2}
+label{display:block;font-size:12px;font-weight:700;color:#64748b}select,input[type=number],input[type=text]{width:100%;padding:9px;margin-top:5px;border:1px solid #cbd5e1;border-radius:9px;background:#fff;font:inherit}
+.actions{display:flex;flex-wrap:wrap;gap:8px;margin-top:14px}button{border:0;border-radius:9px;padding:10px 14px;font-weight:700;cursor:pointer;font:inherit}.primary{background:#2563eb;color:#fff}.success{background:#15803d;color:#fff}.secondary{background:#e8eef7;color:#1e293b}button:disabled{opacity:.45}
+.status{margin-top:11px;padding:10px 12px;border-radius:9px;background:#f1f5f9;font-size:13px}.ok{background:#ecfdf5;color:#166534}.err{background:#fef2f2;color:#991b1b}
+.preview{overflow:auto;max-height:430px;border:1px solid #e2e8f0;border-radius:9px}.preview table{border-collapse:collapse;min-width:100%;font-size:12px}.preview th,.preview td{border:1px solid #dbe2ea;padding:7px 9px;white-space:nowrap;text-align:left}.preview th{background:#eef3f8;position:sticky;top:0}
+.help{background:#f8fafc;border-left:4px solid #94a3b8;padding:11px 13px;border-radius:6px;margin-top:12px;font-size:12px;line-height:1.55}.check{display:flex;gap:8px;align-items:center;margin-top:9px;font-size:13px}.check input{width:auto}
+.badge{display:inline-block;background:#eef2ff;padding:3px 7px;border-radius:8px;font-size:11px;margin:2px}
+@media(max-width:800px){.grid{grid-template-columns:1fr 1fr}.wide{grid-column:span 2}}@media(max-width:500px){.grid{grid-template-columns:1fr}.wide{grid-column:span 1}}
+</style>
+</head>
+<body>
+<main>
+<section class="card">
+<h1>Excel Financial Orientation Converter</h1>
+<div class="muted">Convert financial/reporting Excel from <b>Particulars ↓ + dates/years →</b> to <b>dates/years ↓ + Particulars →</b>, while retaining useful financial-statement information.</div>
+<div class="ver">Version 4.0</div>
+</section>
+
+<section class="card">
+<div id="drop" class="drop"><b>Upload Excel / CSV</b><br><span class="muted">.xlsx, .xls or .csv</span><input id="file" type="file" accept=".xlsx,.xls,.csv"></div>
+<div id="status" class="status">No file selected.</div>
+</section>
+
+<section id="settings" class="card" style="display:none">
+<h3 style="margin-top:0">Smart financial-statement conversion</h3>
+<div class="grid">
+<div><label>Worksheet</label><select id="sheet"></select></div>
+<div><label>Header mode</label><select id="hmode"><option value="auto">Automatic</option><option value="manual">Manual</option></select></div>
+<div><label>Period/header row</label><input id="header" type="number" min="1" value="1"></div>
+<div><label>Particulars column</label><select id="part"></select></div>
+<div><label>First period column</label><select id="first"></select></div>
+<div><label>Output sheet</label><input id="outname" value="Converted"></div>
+<div class="wide"><label>Conversion</label><select id="mode"><option value="financial">Financial statement orientation</option><option value="simple">Simple orientation</option><option value="full">Full transpose</option></select></div>
+</div>
+
+<div class="check"><input id="merge" type="checkbox" checked><span>Combine multi-row headers / merged-style headings</span></div>
+<div class="check"><input id="retainNotes" type="checkbox" checked><span>Retain Note No. / code when available</span></div>
+<div class="check"><input id="sections" type="checkbox" checked><span>Retain section headings and subtotal/total rows</span></div>
+<div class="check"><input id="empty" type="checkbox" checked><span>Ignore completely blank rows</span></div>
+
+<div class="actions">
+<button class="primary" id="detect">Detect layout</button>
+<button class="primary" id="convert">Convert</button>
+<button class="success" id="download" disabled>Download Excel</button>
+<button class="secondary" id="reset">Reset</button>
+</div>
+<div id="layout" class="help" style="display:none"></div>
+</section>
+
+<section id="previewCard" class="card" style="display:none">
+<h3 style="margin-top:0">Converted preview</h3>
+<div id="preview" class="preview"></div>
+</section>
+</main>
+
+<script>
+let wb=null,outWb=null,fileName="",det=null;
+const $=id=>document.getElementById(id);
+function esc(x){return String(x??"").replace(/[&<>"']/g,m=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#039;"}[m]))}
+function msg(t,type=""){$("status").textContent=t;$("status").className="status "+type}
+function aoa(){return XLSX.utils.sheet_to_json(wb.Sheets[$("sheet").value],{header:1,raw:true,defval:"",blankrows:true})}
+$("drop").onclick=()=>$("file").click();$("file").onchange=e=>e.target.files[0]&&load(e.target.files[0]);
+["dragenter","dragover"].forEach(e=>$("drop").addEventListener(e,x=>{x.preventDefault();$("drop").classList.add("drag")}));
+["dragleave","drop"].forEach(e=>$("drop").addEventListener(e,x=>{x.preventDefault();$("drop").classList.remove("drag")}));
+$("drop").ondrop=e=>e.dataTransfer.files[0]&&load(e.dataTransfer.files[0]);
+
+async function load(f){
+ try{fileName=f.name;wb=XLSX.read(await f.arrayBuffer(),{type:"array",cellDates:true});
+ $("sheet").innerHTML=wb.SheetNames.map(x=>`<option>${esc(x)}</option>`).join("");
+ $("settings").style.display="block";$("previewCard").style.display="none";$("download").disabled=true;
+ detectLayout();msg(`Loaded ${f.name} — ${wb.SheetNames.length} sheet(s).`,"ok");
+ }catch(e){msg("Unable to read file: "+e.message,"err")}
+}
+$("sheet").onchange=()=>{det=null;detectLayout()};$("hmode").onchange=()=>detectLayout();$("header").onchange=fillCols;
+
+function period(v){
+ if(v instanceof Date)return true;
+ let s=String(v??"").trim().toLowerCase();
+ return /^(19|20)\d{2}$/.test(s)||/\b(19|20)\d{2}\b/.test(s)||/\bq[1-4]\b/.test(s)||
+ /fy\s*\d{2,4}/.test(s)||/^(mar|march|jun|june|sep|sept|september|dec|december|jan|feb|apr|may|jul|aug|oct|nov)\b/.test(s);
+}
+function score(row){let n=0,p=0;for(const v of row||[]){if(v!==""&&v!=null){n++;if(period(v))p++}}return n?p/n:0}
+function fillCols(){
+ let a=aoa(),r=(+$("header").value||1)-1,h=a[r]||[],n=Math.max(h.length,1),s="";
+ for(let i=0;i<n;i++)s+=`<option value="${i}">${i+1} – ${esc(h[i]??("Column "+(i+1)))}</option>`;
+ $("part").innerHTML=s;$("first").innerHTML=s;
+ if(!det){$("part").value=0;$("first").value=n>1?1:0}
+}
+function detectLayout(){
+ if(!wb)return;let a=aoa(),best={score:0,row:0};
+ for(let r=0;r<Math.min(a.length,15);r++){let z=score(a[r]);if(z>best.score)best={score:z,row:r}}
+ let row=best.score>=.2?best.row:0;$("header").value=row+1;fillCols();let h=a[row]||[],pc=0,fc=1;
+ for(let c=0;c<h.length;c++){let x=String(h[c]??"").toLowerCase();if(/particular|description|account|item|head|details/.test(x)){pc=c;break}}
+ for(let c=pc+1;c<h.length;c++)if(period(h[c])){fc=c;break}
+ $("part").value=pc;$("first").value=fc;det={row,pc,fc};
+ $("layout").style.display="block";
+ $("layout").innerHTML=`<b>Detected:</b> header row ${row+1} · particulars column ${pc+1} · first period column ${fc+1} <span class="badge">period confidence ${(best.score*100).toFixed(0)}%</span>`;
+}
+$("detect").onclick=detectLayout;
+
+function headerLabels(a,hr,fc,last){
+ let rows=[];
+ if($("merge").checked){
+  for(let r=0;r<=hr;r++){if((a[r]||[]).slice(fc,last+1).some(v=>v!==""&&v!=null))rows.push(a[r]||[])}
+ }else rows=[a[hr]||[]];
+ let labels=[];
+ for(let c=fc;c<=last;c++){
+  let p=[];for(const row of rows){let v=row[c];if(v!==""&&v!=null&&!p.includes(String(v)))p.push(String(v))}
+  labels.push(p.join(" – ")||`Period ${c-fc+1}`);
+ }return labels;
+}
+function looksNote(v){return /^\s*(note|n\.?o\.?|no\.?)\s*[:.-]?\s*\d+/i.test(String(v??""))||/^\s*\d+(\.\d+)*\s*$/.test(String(v??""))}
+function isSection(name,row){
+ let s=String(name??"").trim().toLowerCase(), vals=(row||[]).slice(1).filter(v=>v!==""&&v!=null);
+ if(!s)return false;
+ if(vals.length===0)return true;
+ return /^(total|subtotal|profit|loss|revenue|expenses|assets|liabilities|equity|income|cash flow|segment|current assets|non-current assets)/.test(s);
+}
+function convert(){
+ if(!wb)return;
+ let a=aoa(),hr=(+$("header").value||1)-1,pc=+$("part").value,fc=+$("first").value,last=Math.max(...a.map(r=>r.length),0)-1;
+ if($("mode").value==="full"){let out=[];for(let c=0;c<=last;c++)out.push(a.map(r=>r[c]??""));finish(out);return}
+ let labels=headerLabels(a,hr,fc,last),items=[];
+ for(let r=hr+1;r<a.length;r++){
+  let name=a[r]?.[pc];if(name===""||name==null)continue;
+  if($("empty").checked&&!a[r].some(v=>v!==""&&v!=null))continue;
+  let note="";if($("retainNotes").checked){
+   for(let c=0;c<pc;c++)if(looksNote(a[r]?.[c])){note=a[r][c];break}
+  }
+  let label=note?`${note} – ${name}`:name;
+  let section=isSection(name,a[r]);
+  if(!$("sections").checked&&section)continue;
+  items.push({r,label,section});
+ }
+ if(!labels.length||!items.length){msg("No usable periods or particulars found. Check the selected layout.","err");return}
+ let out=[["Date / Year",...items.map(x=>x.label)]];
+ for(let i=0;i<labels.length;i++){let row=[labels[i]];for(const x of items)row.push(a[x.r]?.[fc+i]??"");out.push(row)}
+ finish(out);
+ msg(`Converted ${items.length} particulars across ${labels.length} periods.`,"ok");
+}
+function finish(out){
+ outWb=XLSX.utils.book_new();let ws=XLSX.utils.aoa_to_sheet(out);
+ ws["!freeze"]={xSplit:1,ySplit:1};ws["!cols"]=Array.from({length:out[0]?.length||1},(_,i)=>({wch:i?24:25}));
+ XLSX.utils.book_append_sheet(outWb,ws,($("outname").value||"Converted").substring(0,31));
+ render(out);$("download").disabled=false;
+}
+function render(a){
+ let R=Math.min(a.length,31),C=Math.min(a[0]?.length||0,16),s="<table><tr>";
+ for(let c=0;c<C;c++)s+=`<th>${esc(a[0][c])}</th>`;s+="</tr>";
+ for(let r=1;r<R;r++){s+="<tr>";for(let c=0;c<C;c++)s+=`<td>${esc(a[r][c])}</td>`;s+="</tr>"}
+ $("preview").innerHTML=s+"</table>";$("previewCard").style.display="block";
+}
+$("convert").onclick=convert;
+$("download").onclick=()=>{if(outWb)XLSX.writeFile(outWb,(fileName.replace(/\.[^.]+$/,"")||"converted")+"_vertical_v3.1.xlsx")};
+$("reset").onclick=()=>location.reload();
+</script>
+<script>
+if ("serviceWorker" in navigator) {
+  window.addEventListener("load", () => navigator.serviceWorker.register("./sw.js").catch(()=>{}));
+}
+</script>
+</body></html>
