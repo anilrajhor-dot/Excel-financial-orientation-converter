@@ -79,7 +79,7 @@ th{background:#eef4fb;position:sticky;top:0;z-index:1}
 <section class="card">
 <h1>Excel Financial Orientation Converter</h1>
 <div class="sub">Convert financial/reporting Excel, CSV and PDF between <b>Particulars ↓ + Dates/Years →</b> and <b>Dates/Years ↓ + Particulars →</b>.</div>
-<div class="badge">Version 8.5.9 • Financial Table & Mobile Preview Fix</div>
+<div class="badge">Version 8.5.10 • Financial Orientation Lock & Mobile Preview Fix</div>
 </section>
 
 <section class="card">
@@ -116,7 +116,7 @@ th{background:#eef4fb;position:sticky;top:0;z-index:1}
 <button class="primary" id="convert" disabled>Convert &amp; Preview</button>
 <button class="secondary" id="reset">Reset</button>
 </div>
-<p class="note">PDF extraction is performed locally in the browser. Version 8.5.9 keeps the complete reconstructed financial table as logical records and detects the actual financial-table structure before orientation conversion. It groups text by visual Y position and uses X positions to form cells, reducing the chance that multi-word particulars become separate columns. Scanned/image-only PDFs still require OCR. Financial PDFs are first identified as a logical table before orientation conversion.</p>
+<p class="note">PDF extraction is performed locally in the browser. Version 8.5.10 keeps the complete reconstructed financial table as logical records and detects the actual financial-table structure before orientation conversion. It groups text by visual Y position and uses X positions to form cells, reducing the chance that multi-word particulars become separate columns. Scanned/image-only PDFs still require OCR. Financial PDFs are first identified as a logical table before orientation conversion.</p>
 </section>
 
 <section class="card hidden" id="previewCard">
@@ -185,6 +185,8 @@ function transpose(matrix){
 
 function reset(){
   fileObj=null; data=[]; pdfPages=0; sourceKind="";
+  $("orientation").value="left-down";
+  $("pdfMode").value="auto";
   $("file").value="";
   $("convert").disabled=true;
   $("previewCard").classList.add("hidden");
@@ -207,6 +209,10 @@ async function loadFile(f){
     setStatus("Unsupported file type.",true); return;
   }
   fileObj=f; data=[]; sourceKind=ext;
+  // Every newly loaded PDF starts in the standard financial-statement orientation.
+  // This prevents a previous manual transpose selection from carrying into the next test.
+  $("orientation").value="left-down";
+  $("pdfMode").value="auto";
   $("convert").disabled=false;
   $("previewCard").classList.add("hidden");
   progress(10);
@@ -575,7 +581,7 @@ function orientPdfRows(rows, mode){
   const {table,kind}=getPdfBaseTable(rows);
   if(!table.length)return [];
 
-  /* Version 8.5.9: if PDF reconstruction has already produced the normal
+  /* Version 8.5.10: if PDF reconstruction has already produced the normal
      financial layout (Particulars in column 1, dates across columns), do not
      accidentally transpose it into 3 × N merely because the orientation
      selector's previous default was column-first. */
@@ -676,7 +682,7 @@ $("convert").onclick=async()=>{
       const detected=getPdfBaseTable(sourceRows);
       if(detected.kind==="financial"){
         const base=detected.table;
-        /* Version 8.5.9: header recognition is diagnostic, never fatal.
+        /* Version 8.5.10: header recognition is diagnostic, never fatal.
            A structurally valid financial table may have a partially reconstructed
            header, especially with PDF text emitted in separate visual records. */
         const rowsCount=base.length;
