@@ -66,7 +66,7 @@ th{background:#eef4fb;position:sticky;top:0;z-index:1}
 <section class="card">
 <h1>Excel Financial Orientation Converter</h1>
 <div class="sub">Convert financial/reporting Excel, CSV and PDF between <b>Particulars ↓ + Dates/Years →</b> and <b>Dates/Years ↓ + Particulars →</b>.</div>
-<div class="badge">Version 8.5.3 • Financial Table Candidate Fix</div>
+<div class="badge">Version 8.5.4 • Complete Financial Table Fix</div>
 </section>
 
 <section class="card">
@@ -103,7 +103,7 @@ th{background:#eef4fb;position:sticky;top:0;z-index:1}
 <button class="primary" id="convert" disabled>Convert &amp; Preview</button>
 <button class="secondary" id="reset">Reset</button>
 </div>
-<p class="note">PDF extraction is performed locally in the browser. Version 8.5.3 keeps reconstructed PDF rows as logical records and detects the actual financial-table structure before orientation conversion. It groups text by visual Y position and uses X positions to form cells, reducing the chance that multi-word particulars become separate columns. Scanned/image-only PDFs still require OCR. Financial PDFs are first identified as a logical table before orientation conversion.</p>
+<p class="note">PDF extraction is performed locally in the browser. Version 8.5.4 keeps reconstructed PDF rows as logical records and detects the actual financial-table structure before orientation conversion. It groups text by visual Y position and uses X positions to form cells, reducing the chance that multi-word particulars become separate columns. Scanned/image-only PDFs still require OCR. Financial PDFs are first identified as a logical table before orientation conversion.</p>
 </section>
 
 <section class="card hidden" id="previewCard">
@@ -363,7 +363,7 @@ function detectFinancialTable(rows){
   if(!rs.length)return null;
 
   /*
-   * Version 8.5.3: candidate selection only.
+   * Version 8.5.4: candidate selection only.
    *
    * The existing PDF extraction and reconstruction are deliberately untouched.
    * At this stage reconstructed rows may be "vertical" logical records:
@@ -502,11 +502,28 @@ function detectFinancialTable(rows){
       if(!label && !v1 && !v2) continue;
       if(isParticularsHeader(label)) continue;
 
-      if(label || isAmountCell(v1) || isAmountCell(v2)){
+      const n1=isAmountCell(v1);
+      const n2=isAmountCell(v2);
+      const hasLabel=!!label;
+      const looksLikeFinancialRow = hasLabel && (n1 || n2);
+
+      if(looksLikeFinancialRow){
         table.push([label,v1,v2]);
-        if(isAmountCell(v1) || isAmountCell(v2)) evidence++;
+        evidence++;
+        continue;
       }
-      if(evidence>=2 && table.length>=3) break;
+
+      // A blank row inside the table is harmless.
+      if(!label && !v1 && !v2) continue;
+
+      // Ignore repeated header rows.
+      if(isParticularsHeader(label) || looksLikeDateYear(v1) || looksLikeDateYear(v2)){
+        continue;
+      }
+
+      // Once the financial body has started, a non-financial row marks the
+      // end of the table. Do not absorb document text into Particulars.
+      if(evidence>=2) break;
     }
 
     if(evidence>=2){
@@ -517,7 +534,7 @@ function detectFinancialTable(rows){
   return null;
 }
 
-/* Version 8.5.3 scope: financial-table candidate/header selection only.
+/* Version 8.5.4 scope: financial-table candidate/header selection only.
    PDF.js, extraction and row reconstruction remain unchanged. */
 /* If a genuine financial table is present, use it as the authoritative
    2-D structure. Otherwise preserve row-first PDF data exactly as before. */
