@@ -66,7 +66,7 @@ th{background:#eef4fb;position:sticky;top:0;z-index:1}
 <section class="card">
 <h1>Excel Financial Orientation Converter</h1>
 <div class="sub">Convert financial/reporting Excel, CSV and PDF between <b>Particulars ↓ + Dates/Years →</b> and <b>Dates/Years ↓ + Particulars →</b>.</div>
-<div class="badge">Version 8.2 • PDF Row-to-Column Conversion Fix</div>
+<div class="badge">Version 8.3 • PDF Reconstructed-Row Structure Fix</div>
 </section>
 
 <section class="card">
@@ -103,7 +103,7 @@ th{background:#eef4fb;position:sticky;top:0;z-index:1}
 <button class="primary" id="convert" disabled>Convert &amp; Preview</button>
 <button class="secondary" id="reset">Reset</button>
 </div>
-<p class="note">PDF extraction is performed locally in the browser. Version 8.2 keeps reconstructed PDF rows intact before orientation conversion. It groups text by visual Y position and uses X positions to form cells, reducing the chance that multi-word particulars become separate columns. Scanned/image-only PDFs still require OCR.</p>
+<p class="note">PDF extraction is performed locally in the browser. Version 8.3 keeps reconstructed PDF rows as logical records through orientation conversion. It groups text by visual Y position and uses X positions to form cells, reducing the chance that multi-word particulars become separate columns. Scanned/image-only PDFs still require OCR.</p>
 </section>
 
 <section class="card hidden" id="previewCard">
@@ -128,6 +128,7 @@ const $ = id => document.getElementById(id);
 let fileObj = null;
 let data = [];
 let pdfPages = 0;
+let sourceKind = "";
 
 function setStatus(msg, err=false){
   const el=$("status");
@@ -142,7 +143,7 @@ function progress(v){
 function clean(s){return String(s??"").replace(/\s+/g," ").trim();}
 
 function reset(){
-  fileObj=null; data=[]; pdfPages=0;
+  fileObj=null; data=[]; pdfPages=0; sourceKind="";
   $("file").value="";
   $("convert").disabled=true;
   $("previewCard").classList.add("hidden");
@@ -164,7 +165,7 @@ async function loadFile(f){
   if(!["xlsx","xls","csv","pdf"].includes(ext)){
     setStatus("Unsupported file type.",true); return;
   }
-  fileObj=f; data=[];
+  fileObj=f; data=[]; sourceKind=ext;
   $("convert").disabled=false;
   $("previewCard").classList.add("hidden");
   progress(10);
@@ -324,6 +325,47 @@ function transpose(a){
   const n=Math.max(...a.map(r=>r.length),0);
   return Array.from({length:n},(_,j)=>a.map(r=>r[j]??""));
 }
+
+/* PDF orientation must operate on reconstructed logical rows.  A row-first
+   PDF can legitimately produce one cell per visual row (for example a
+   resolution or narrative document).  In that case a generic transpose
+   would turn 40 source rows into 1 row x 40 columns, which is precisely the
+   failure this version prevents.  Only transpose PDF data when the
+   reconstructed rows actually contain multiple logical fields. */
+function orientPdfRows(rows, mode){
+  const cleanRows=normalise(rows);
+  if(!cleanRows.length)return [];
+
+  const sourceRowCount=cleanRows.length;
+  const sourceColCount=Math.max(...cleanRows.map(r=>r.length),0);
+
+  if(sourceRowCount>1 && sourceColCount<=1){
+    /* No period/date columns exist in the reconstructed data, so there is
+       nothing meaningful to transpose. Preserve every reconstructed row. */
+    return cleanRows.map(r=>[r[0]??""]);
+  }
+
+  return mode==="down-right" ? transpose(cleanRows) : cleanRows;
+}
+
+function validateConverted(sourceRows, converted, isPdf){
+  if(!Array.isArray(sourceRows)||!sourceRows.length) throw new Error("No reconstructed/source rows were produced.");
+  if(!Array.isArray(converted)||!converted.length) throw new Error("Orientation conversion produced no rows.");
+  if(!converted.every(Array.isArray)) throw new Error("Orientation conversion produced an invalid non-tabular structure.");
+  const src=normalise(sourceRows);
+  const srcRows=src.length;
+  const srcCols=src.length?Math.max(...src.map(r=>r.length),0):0;
+  const outCols=converted.length?Math.max(...converted.map(r=>r.length),0):0;
+  if(!outCols) throw new Error("Orientation conversion produced no usable columns.");
+
+  /* Most importantly, never accept the known bad shape: multiple reconstructed
+     single-cell PDF rows becoming one wide row. */
+  if(isPdf && srcRows>1 && srcCols<=1 && converted.length===1 && outCols>=srcRows){
+    throw new Error(`Invalid PDF orientation: ${srcRows} reconstructed rows were collapsed into 1 row × ${outCols} columns.`);
+  }
+  return true;
+}
+
 function normalise(a){
   const max=a.reduce((m,r)=>Math.max(m,r.length),0);
   return a.map(r=>Array.from({length:max},(_,i)=>r[i]??""))
@@ -360,17 +402,26 @@ $("convert").onclick=async()=>{
     }
 
     const mode=$("orientation").value;
-    if(mode==="down-right") data=transpose(data);
+    const sourceRows = normalise(data);
 
-    data=normalise(data);
-
-    /* Never claim success when extraction produced no rows. */
-    if(!data.length){
+    if(!sourceRows.length){
       $("previewCard").classList.add("hidden");
       setStatus("Conversion failed: no usable rows were produced.",true);
       progress(100);
       return;
     }
+
+    /* PDF rows are already the authoritative row-first intermediate.  Do not
+       flatten them and do not transpose a single-field row collection into a
+       single wide row.  Office/CSV files retain their existing transpose rule. */
+    if(ext==="pdf"){
+      data=orientPdfRows(sourceRows,mode);
+    }else{
+      data=mode==="down-right" ? transpose(sourceRows) : sourceRows;
+      data=normalise(data);
+    }
+
+    validateConverted(sourceRows,data,ext==="pdf");
 
     render(data);
     progress(100);
@@ -456,13 +507,13 @@ function download(kind){
     XLSX.utils.book_append_sheet(wb,ws,"Converted");
 
     /* SheetJS writeFile handles the platform-specific file save. */
-    XLSX.writeFile(wb,`${name}_converted_v8.2.xlsx`);
+    XLSX.writeFile(wb,`${name}_converted_v8.3.xlsx`);
     setStatus("Excel file prepared for download.");
   }else{
     const ws=XLSX.utils.aoa_to_sheet(data);
     const csv=XLSX.utils.sheet_to_csv(ws);
     const blob=new Blob(["\ufeff"+csv],{type:"text/csv;charset=utf-8"});
-    saveBlob(blob,`${name}_converted_v8.2.csv`);
+    saveBlob(blob,`${name}_converted_v8.3.csv`);
     setStatus("CSV file prepared for download.");
   }
 }
