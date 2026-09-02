@@ -66,7 +66,7 @@ th{background:#eef4fb;position:sticky;top:0;z-index:1}
 <section class="card">
 <h1>Excel Financial Orientation Converter</h1>
 <div class="sub">Convert financial/reporting Excel, CSV and PDF between <b>Particulars ↓ + Dates/Years →</b> and <b>Dates/Years ↓ + Particulars →</b>.</div>
-<div class="badge">Version 8.4 • PDF Logical Row & Field Handling Fix</div>
+<div class="badge">Version 8.5 • Financial Table Structure Fix</div>
 </section>
 
 <section class="card">
@@ -103,7 +103,7 @@ th{background:#eef4fb;position:sticky;top:0;z-index:1}
 <button class="primary" id="convert" disabled>Convert &amp; Preview</button>
 <button class="secondary" id="reset">Reset</button>
 </div>
-<p class="note">PDF extraction is performed locally in the browser. Version 8.3 keeps reconstructed PDF rows as logical records through orientation conversion. It groups text by visual Y position and uses X positions to form cells, reducing the chance that multi-word particulars become separate columns. Scanned/image-only PDFs still require OCR.</p>
+<p class="note">PDF extraction is performed locally in the browser. Version 8.5 keeps reconstructed PDF rows as logical records and detects the actual financial-table structure before orientation conversion. It groups text by visual Y position and uses X positions to form cells, reducing the chance that multi-word particulars become separate columns. Scanned/image-only PDFs still require OCR. Financial PDFs are first identified as a logical table before orientation conversion.</p>
 </section>
 
 <section class="card hidden" id="previewCard">
@@ -273,14 +273,12 @@ function reconstruct(pages){
 }
 
 function repairPdfRows(rows){
-  /* Version 8.2: preserve the reconstructed visual rows, then repair the
-     over-fragmented word-columns produced by PDF positioning.  This is a
-     post-processing step; PDF.js extraction and row reconstruction remain
-     unchanged. */
+  /* Preserve the Version 8.5 post-processing contract:
+     PDF.js extraction and row reconstruction are NOT changed here.
+     Each reconstructed visual row remains one logical record. */
   return rows.map(row=>{
     const vals=row.map(clean).filter(Boolean);
     if(!vals.length)return [];
-    if(vals.length===1)return vals;
 
     const isNumberLike=v=>{
       const x=v.replace(/[,₹$€£%()\-]/g, '').trim();
@@ -288,78 +286,145 @@ function repairPdfRows(rows){
     };
     const isAmountLike=v=>/^[₹$€£]?\s*\(?[\d,]+(?:\.\d+)?\)?%?$/.test(v.trim());
 
-    /* A financial row normally has one descriptive particulars field followed
-       by dates/years/figures. Join leading text cells so multi-word particulars
-       cannot become separate columns. Preserve numeric/date cells separately. */
+    /* A row normally begins with the Particulars text and then contains
+       date/year/amount fields. Join leading text cells only. */
     let firstData=-1;
     for(let i=0;i<vals.length;i++){
       if(isNumberLike(vals[i])||isAmountLike(vals[i])){ firstData=i; break; }
     }
     if(firstData>0){
-      const particulars=vals.slice(0,firstData).join(' ');
-      return [particulars,...vals.slice(firstData)];
+      return [vals.slice(0,firstData).join(" "),...vals.slice(firstData)];
     }
 
-    /* If a row contains no numeric/date cells, it is most safely treated as a
-       single visual row rather than inventing columns from individual words. */
-    return [vals.join(' ')];
+    /* A purely textual visual row remains one logical field. */
+    return [vals.join(" ")];
   }).filter(r=>r.length&&r.some(Boolean));
 }
 
-function nearestAnchor(x,a){
-  let best=0,d=Infinity;
-  for(let i=0;i<a.length;i++){
-    const z=Math.abs(x-a[i]);
-    if(z<d){d=z;best=i;}
-  }
-  return best;
-}
-function selectAnchors(a,freq,max){
-  return a.slice()
-    .sort((x,y)=>(freq.get(y)||0)-(freq.get(x)||0))
-    .slice(0,max)
-    .sort((x,y)=>x-y);
-}
-function transpose(a){
-  if(!a.length)return[];
-  const n=Math.max(...a.map(r=>r.length),0);
-  return Array.from({length:n},(_,j)=>a.map(r=>r[j]??""));
+function looksLikeDateYear(v){
+  const x=clean(v);
+  return /\b(?:19\d{2}|20\d{2})\b/.test(x) ||
+         /\bFY\s*\d{2,4}\b/i.test(x) ||
+         /\b(?:Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)[a-z]*\s+\d{4}\b/i.test(x) ||
+         /\b\d{1,2}[\/.\-]\d{1,2}[\/.\-]\d{2,4}\b/.test(x);
 }
 
-/* PDF orientation must operate on reconstructed logical rows.  A row-first
-   PDF can legitimately produce one cell per visual row (for example a
-   resolution or narrative document).  In that case a generic transpose
-   would turn 40 source rows into 1 row x 40 columns, which is precisely the
-   failure this version prevents.  Only transpose PDF data when the
-   reconstructed rows actually contain multiple logical fields. */
+function isAmountCell(v){
+  const x=clean(v);
+  if(!x)return false;
+  const n=x.replace(/[₹$€£,\s%()\-]/g,"");
+  return /^\d+(?:\.\d+)?$/.test(n);
+}
+
+function isParticularsHeader(v){
+  return /\b(particulars|particular|description|details)\b/i.test(clean(v));
+}
+
+function financialHeaderScore(row){
+  if(!Array.isArray(row)||!row.length)return -Infinity;
+  const text=row.map(clean);
+  const dateCount=text.filter(looksLikeDateYear).length;
+  const hasParticulars=text.some(isParticularsHeader);
+  const nonEmpty=text.filter(Boolean).length;
+  return (hasParticulars?100:0) + dateCount*20 + Math.min(nonEmpty,6);
+}
+
+/* Build the financial table FROM THE ALREADY RECONSTRUCTED ROWS.
+   This deliberately does not touch extractPDF() or reconstruct(). */
+function detectFinancialTable(rows){
+  const rs=normalise(rows);
+  if(!rs.length)return null;
+
+  let headerIndex=-1, best=-Infinity;
+  rs.forEach((r,i)=>{
+    const score=financialHeaderScore(r);
+    if(score>best && score>=120){
+      best=score; headerIndex=i;
+    }
+  });
+  if(headerIndex<0)return null;
+
+  const header=rs[headerIndex].map(clean);
+  const dateCols=[];
+  header.forEach((v,i)=>{ if(looksLikeDateYear(v)) dateCols.push(i); });
+
+  /* The financial-table contract is one Particulars column plus at least
+     two date/year columns for a multi-year statement. */
+  const particularsCol=Math.max(0, header.findIndex(isParticularsHeader));
+  if(dateCols.length<2)return null;
+
+  const usedCols=[particularsCol,...dateCols.filter(i=>i!==particularsCol)]
+    .sort((a,b)=>a-b);
+  if(usedCols.length<3)return null;
+
+  const table=[usedCols.map(i=>header[i]||"")];
+
+  let meaningfulRows=0;
+  for(let i=headerIndex+1;i<rs.length;i++){
+    const r=rs[i];
+    const label=clean(r[particularsCol]||"");
+    const values=usedCols.slice(1).map(c=>clean(r[c]||""));
+
+    /* Stop only after the table has started and a later section is clearly
+       unrelated. Keep legitimate financial rows even when some amounts are
+       blank. */
+    const numericCount=values.filter(isAmountCell).length;
+    const hasAnyValue=label || values.some(Boolean);
+
+    if(!hasAnyValue){
+      if(meaningfulRows>0) break;
+      continue;
+    }
+
+    /* Ignore obvious trailing page/document prose once a financial table has
+       begun, but keep headings/totals with a particulars label. */
+    const proseWords=(label.match(/[A-Za-z]+/g)||[]).length;
+    const looksLikeNarrative=proseWords>10 && numericCount===0 && values.every(v=>!v);
+    if(looksLikeNarrative && meaningfulRows>0) break;
+
+    table.push([label,...values]);
+    if(label || numericCount>0) meaningfulRows++;
+  }
+
+  if(table.length<2)return null;
+
+  /* Trim completely empty trailing columns/rows without splitting fields. */
+  const cleaned=normalise(table);
+  if(cleaned.length<2 || Math.max(...cleaned.map(r=>r.length))<3)return null;
+
+  return cleaned;
+}
+
+/* If a genuine financial table is present, use it as the authoritative
+   2-D structure. Otherwise preserve row-first PDF data exactly as before. */
+function getPdfBaseTable(rows){
+  const financial=detectFinancialTable(rows);
+  if(financial)return {table:financial, kind:"financial"};
+
+  const base=normalise(rows);
+  return {table:base, kind:"row-first"};
+}
+
 function orientPdfRows(rows, mode){
-  const cleanRows=normalise(rows);
-  if(!cleanRows.length)return [];
+  const {table,kind}=getPdfBaseTable(rows);
+  if(!table.length)return [];
 
-  /* A PDF reconstructed row is a logical record. Never use a generic
-     transpose when every source record currently has one field: doing so
-     changes N records into one record with N columns.
-
-     For a genuine multi-field PDF table, transpose only the table itself.
-     For a text/narrative PDF such as Annexure_B, preserve the reconstructed
-     records exactly and report that no date/year field was detected rather
-     than inventing columns. */
-  const sourceColCount=Math.max(...cleanRows.map(r=>r.length),0);
-  const hasDateYearField=cleanRows.some(r=>r.some(v=>{
-    const x=String(v).trim();
-    return /\b(?:19\d{2}|20\d{2})\b/.test(x) ||
-           /\bFY\s*\d{2,4}\b/i.test(x) ||
-           /\b(?:Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)[a-z]*\s+\d{4}\b/i.test(x) ||
-           /\b\d{1,2}[\/.\-]\d{1,2}[\/.\-]\d{2,4}\b/.test(x);
-  }));
-
-  if(sourceColCount<=1){
-    return cleanRows.map(r=>[r[0]??""]);
+  if(kind==="financial"){
+    /* The logical financial table is established FIRST.
+       Only then apply the selected orientation. */
+    return mode==="down-right" ? transpose(table) : table;
   }
 
-  /* Multi-field reconstructed rows are already tabular; transpose only
-     when the selected orientation actually requires it. */
-  return mode==="down-right" ? transpose(cleanRows) : cleanRows;
+  /* Narrative / non-financial PDFs: never collapse N one-field records into
+     one wide row. Preserve the reconstructed logical records. */
+  const sourceColCount=Math.max(...table.map(r=>r.length),0);
+  if(sourceColCount<=1){
+    return table.map(r=>[r[0]??""]);
+  }
+
+  /* For genuinely multi-field reconstructed rows, retain the existing
+     orientation behaviour. */
+  return mode==="down-right" ? transpose(table) : table;
 }
 
 function validateConverted(sourceRows, converted, isPdf){
@@ -437,12 +502,32 @@ $("convert").onclick=async()=>{
 
     validateConverted(sourceRows,data,ext==="pdf");
 
+    if(ext==="pdf"){
+      const detected=getPdfBaseTable(sourceRows);
+      if(detected.kind==="financial"){
+        const base=detected.table;
+        if(base.length<2 || Math.max(...base.map(r=>r.length),0)<3){
+          throw new Error("Could not reliably identify the financial table structure.");
+        }
+        const headerText=base[0].join(" ");
+        if(!/(particulars|particular|description|details)/i.test(headerText)){
+          throw new Error("Could not reliably identify the financial table header.");
+        }
+      }
+    }
+
     render(data);
     progress(100);
     $("previewCard").classList.remove("hidden");
-    const pdfNotice = ext==="pdf" && Math.max(...data.map(r=>r.length),0)<=1
-      ? " No date/year columns were detected, so reconstructed PDF rows were preserved rather than transposed."
-      : "";
+    let pdfNotice="";
+    if(ext==="pdf"){
+      const detected=getPdfBaseTable(sourceRows);
+      if(detected.kind==="financial"){
+        pdfNotice=` Financial table detected: ${detected.table.length} logical rows × ${Math.max(...detected.table.map(r=>r.length),0)} logical columns before orientation.`;
+      }else if(Math.max(...data.map(r=>r.length),0)<=1){
+        pdfNotice=" No financial table was detected, so reconstructed PDF rows were preserved rather than transposed.";
+      }
+    }
     setStatus(`Conversion complete. Preview contains ${data.length} rows.${pdfNotice}`);
     window.scrollTo({top:document.body.scrollHeight,behavior:"smooth"});
   }catch(e){
@@ -524,14 +609,14 @@ function download(kind){
     XLSX.utils.book_append_sheet(wb,ws,"Converted");
 
     /* SheetJS writeFile handles the platform-specific file save. */
-    XLSX.writeFile(wb,`${name}_converted_v8.4.xlsx`);
-    setStatus("Excel file prepared for download.");
+    XLSX.writeFile(wb,`${name}_converted_v8.5.xlsx`);
+    setStatus("Excel file prepared from the same Preview data.");
   }else{
     const ws=XLSX.utils.aoa_to_sheet(data);
     const csv=XLSX.utils.sheet_to_csv(ws);
     const blob=new Blob(["\ufeff"+csv],{type:"text/csv;charset=utf-8"});
-    saveBlob(blob,`${name}_converted_v8.4.csv`);
-    setStatus("CSV file prepared for download.");
+    saveBlob(blob,`${name}_converted_v8.5.csv`);
+    setStatus("CSV file prepared from the same Preview data.");
   }
 }
 
