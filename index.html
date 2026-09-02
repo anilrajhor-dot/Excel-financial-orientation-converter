@@ -103,7 +103,7 @@ th{background:#eef4fb;position:sticky;top:0;z-index:1}
 <button class="primary" id="convert" disabled>Convert &amp; Preview</button>
 <button class="secondary" id="reset">Reset</button>
 </div>
-<p class="note">PDF extraction is performed locally in the browser. Version 8.1 keeps reconstructed PDF rows intact before orientation conversion. It groups text by visual Y position and uses X positions to form cells, reducing the chance that multi-word particulars become separate columns. Scanned/image-only PDFs still require OCR.</p>
+<p class="note">PDF extraction is performed locally in the browser. Version 8.2 keeps reconstructed PDF rows intact before orientation conversion. It groups text by visual Y position and uses X positions to form cells, reducing the chance that multi-word particulars become separate columns. Scanned/image-only PDFs still require OCR.</p>
 </section>
 
 <section class="card hidden" id="previewCard">
@@ -174,7 +174,7 @@ async function loadFile(f){
     setStatus(`Loaded: ${f.name}. Reading PDF text and detecting table structure…`);
     try{
       const r=await extractPDF(f);
-      data=r;
+      data=repairPdfRows(r);
       progress(100);
       if(r.length){
         setStatus(`Loaded: ${f.name}. Detected ${r.length} reconstructed rows. Choose the orientation and press Convert & Preview.`);
@@ -269,6 +269,40 @@ function reconstruct(pages){
 
   return rows.map(r=>cols.map((keep,j)=>keep?(r[j]||""):""))
              .map(r=>r.filter((_,j)=>cols[j]));
+}
+
+function repairPdfRows(rows){
+  /* Version 8.2: preserve the reconstructed visual rows, then repair the
+     over-fragmented word-columns produced by PDF positioning.  This is a
+     post-processing step; PDF.js extraction and row reconstruction remain
+     unchanged. */
+  return rows.map(row=>{
+    const vals=row.map(clean).filter(Boolean);
+    if(!vals.length)return [];
+    if(vals.length===1)return vals;
+
+    const isNumberLike=v=>{
+      const x=v.replace(/[,₹$€£%()\-]/g, '').trim();
+      return /^(?:\d+(?:\.\d+)?|\d{1,2}[\/\-.]\d{1,2}[\/\-.]\d{2,4}|FY\s*\d{2,4}|19\d{2}|20\d{2})$/i.test(x);
+    };
+    const isAmountLike=v=>/^[₹$€£]?\s*\(?[\d,]+(?:\.\d+)?\)?%?$/.test(v.trim());
+
+    /* A financial row normally has one descriptive particulars field followed
+       by dates/years/figures. Join leading text cells so multi-word particulars
+       cannot become separate columns. Preserve numeric/date cells separately. */
+    let firstData=-1;
+    for(let i=0;i<vals.length;i++){
+      if(isNumberLike(vals[i])||isAmountLike(vals[i])){ firstData=i; break; }
+    }
+    if(firstData>0){
+      const particulars=vals.slice(0,firstData).join(' ');
+      return [particulars,...vals.slice(firstData)];
+    }
+
+    /* If a row contains no numeric/date cells, it is most safely treated as a
+       single visual row rather than inventing columns from individual words. */
+    return [vals.join(' ')];
+  }).filter(r=>r.length&&r.some(Boolean));
 }
 
 function nearestAnchor(x,a){
@@ -422,13 +456,13 @@ function download(kind){
     XLSX.utils.book_append_sheet(wb,ws,"Converted");
 
     /* SheetJS writeFile handles the platform-specific file save. */
-    XLSX.writeFile(wb,`${name}_converted_v8.1.xlsx`);
+    XLSX.writeFile(wb,`${name}_converted_v8.2.xlsx`);
     setStatus("Excel file prepared for download.");
   }else{
     const ws=XLSX.utils.aoa_to_sheet(data);
     const csv=XLSX.utils.sheet_to_csv(ws);
     const blob=new Blob(["\ufeff"+csv],{type:"text/csv;charset=utf-8"});
-    saveBlob(blob,`${name}_converted_v8.1.csv`);
+    saveBlob(blob,`${name}_converted_v8.2.csv`);
     setStatus("CSV file prepared for download.");
   }
 }
