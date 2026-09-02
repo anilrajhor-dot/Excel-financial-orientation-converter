@@ -79,7 +79,7 @@ th{background:#eef4fb;position:sticky;top:0;z-index:1}
 <section class="card">
 <h1>Excel Financial Orientation Converter</h1>
 <div class="sub">Convert financial/reporting Excel, CSV and PDF between <b>Particulars ↓ + Dates/Years →</b> and <b>Dates/Years ↓ + Particulars →</b>.</div>
-<div class="badge">Version 8.5.9 • Financial Table & Mobile Preview Fix</div>
+<div class="badge">Version 8.5.10 • Financial Table Protection & Mobile Preview Fix</div>
 </section>
 
 <section class="card">
@@ -116,7 +116,7 @@ th{background:#eef4fb;position:sticky;top:0;z-index:1}
 <button class="primary" id="convert" disabled>Convert &amp; Preview</button>
 <button class="secondary" id="reset">Reset</button>
 </div>
-<p class="note">PDF extraction is performed locally in the browser. Version 8.5.9 keeps the complete reconstructed financial table as logical records and detects the actual financial-table structure before orientation conversion. It groups text by visual Y position and uses X positions to form cells, reducing the chance that multi-word particulars become separate columns. Scanned/image-only PDFs still require OCR. Financial PDFs are first identified as a logical table before orientation conversion.</p>
+<p class="note">PDF extraction is performed locally in the browser. Version 8.5.10 keeps the complete reconstructed financial table as logical records and detects the actual financial-table structure before orientation conversion. It groups text by visual Y position and uses X positions to form cells, reducing the chance that multi-word particulars become separate columns. Scanned/image-only PDFs still require OCR. Financial PDFs are first identified as a logical table before orientation conversion.</p>
 </section>
 
 <section class="card hidden" id="previewCard">
@@ -540,6 +540,32 @@ function detectFinancialTable(rows){
     }
   }
 
+  /* v8.5.10 safety fallback: if the PDF extractor produced a recognisable
+     financial sequence but the header wording was fragmented, recover the
+     complete table instead of failing on header recognition. */
+  for(let p=0;p<Math.min(rs.length,20);p++){
+    const headerCells=rs[p].map(clean);
+    const dateIdx=headerCells.map((v,i)=>looksLikeDateYear(v)?i:-1).filter(i=>i>=0);
+    if(dateIdx.length>=2){
+      const pi=headerCells.findIndex(isParticularsHeader);
+      if(pi>=0){
+        const c1=dateIdx[0], c2=dateIdx[1];
+        const out=[[headerCells[pi]||"Particulars",headerCells[c1],headerCells[c2]]];
+        let good=0;
+        for(let j=p+1;j<rs.length;j++){
+          const label=clean(rs[j][pi]||"");
+          const a=clean(rs[j][c1]||"");
+          const b=clean(rs[j][c2]||"");
+          if(!label && !a && !b) break;
+          if(isParticularsHeader(label)||looksLikeDateYear(label)) break;
+          if(label && (isAmountCell(a)||isAmountCell(b))){ out.push([label,a,b]); good++; }
+          else if(good>=2) break;
+        }
+        if(out.length>=3) return normalise(out);
+      }
+    }
+  }
+
   return null;
 }
 
@@ -575,7 +601,7 @@ function orientPdfRows(rows, mode){
   const {table,kind}=getPdfBaseTable(rows);
   if(!table.length)return [];
 
-  /* Version 8.5.9: if PDF reconstruction has already produced the normal
+  /* Version 8.5.10: if PDF reconstruction has already produced the normal
      financial layout (Particulars in column 1, dates across columns), do not
      accidentally transpose it into 3 × N merely because the orientation
      selector's previous default was column-first. */
@@ -676,7 +702,7 @@ $("convert").onclick=async()=>{
       const detected=getPdfBaseTable(sourceRows);
       if(detected.kind==="financial"){
         const base=detected.table;
-        /* Version 8.5.9: header recognition is diagnostic, never fatal.
+        /* Version 8.5.10: header recognition is diagnostic, never fatal.
            A structurally valid financial table may have a partially reconstructed
            header, especially with PDF text emitted in separate visual records. */
         const rowsCount=base.length;
@@ -797,13 +823,13 @@ function download(kind){
     XLSX.utils.book_append_sheet(wb,ws,"Converted");
 
     /* SheetJS writeFile handles the platform-specific file save. */
-    XLSX.writeFile(wb,`${name}_converted_v8.5.9.xlsx`);
+    XLSX.writeFile(wb,`${name}_converted_v8.5.10.xlsx`);
     setStatus("Excel file prepared from the same Preview data.");
   }else{
     const ws=XLSX.utils.aoa_to_sheet(data);
     const csv=XLSX.utils.sheet_to_csv(ws);
     const blob=new Blob(["\ufeff"+csv],{type:"text/csv;charset=utf-8"});
-    saveBlob(blob,`${name}_converted_v8.5.9.csv`);
+    saveBlob(blob,`${name}_converted_v8.5.10.csv`);
     setStatus("CSV file prepared from the same Preview data.");
   }
 }
