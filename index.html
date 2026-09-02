@@ -362,62 +362,139 @@ function detectFinancialTable(rows){
   const rs=normalise(rows);
   if(!rs.length)return null;
 
-  let headerIndex=-1, best=-Infinity;
-  rs.forEach((r,i)=>{
-    const score=financialHeaderScore(r);
-    if(score>best && score>=120){
-      best=score; headerIndex=i;
+  /* Header detection is intentionally tolerant. PDF text extraction can place
+     a Particulars label and year/date fragments on adjacent reconstructed
+     visual rows, so do not require all header tokens to occupy one row. */
+  let headerIndex=-1, header=null, particularsCol=-1, dateCols=[];
+
+  const scanLimit=Math.min(rs.length,8);
+  for(let i=0;i<scanLimit;i++){
+    const windowRows=rs.slice(i,Math.min(rs.length,i+4));
+    const width=Math.max(...windowRows.map(r=>r.length),0);
+    if(width<1)continue;
+
+    const merged=Array.from({length:width},(_,c)=>
+      windowRows.map(r=>clean(r[c]||"")).filter(Boolean).join(" ")
+    );
+    const localParticulars=merged.findIndex(isParticularsHeader);
+    const localDates=merged
+      .map((v,c)=>looksLikeDateYear(v)?c:-1)
+      .filter(c=>c>=0);
+
+    if(localDates.length>=2 && localParticulars>=0){
+      headerIndex=i;
+      header=merged;
+      particularsCol=localParticulars;
+      dateCols=localDates;
+      break;
     }
-  });
-  if(headerIndex<0)return null;
+  }
 
-  const header=rs[headerIndex].map(clean);
-  const dateCols=[];
-  header.forEach((v,i)=>{ if(looksLikeDateYear(v)) dateCols.push(i); });
+  /* Fallback: locate Particulars and date/year tokens independently in the
+     early reconstructed rows. This handles headers whose fragments were
+     split into separate visual records. */
+  if(headerIndex<0){
+    let pRow=-1, pCol=-1;
+    const candidates=[];
+    for(let i=0;i<scanLimit;i++){
+      rs[i].forEach((v,c)=>{
+        if(pRow<0 && isParticularsHeader(v)){pRow=i;pCol=c;}
+        if(looksLikeDateYear(v))candidates.push({row:i,col:c,value:clean(v)});
+      });
+    }
+    if(pRow>=0 && candidates.length>=2){
+      /* Prefer distinct reconstructed columns. If date fragments share one
+         column, retain their text as one header rather than inventing cells. */
+      const byCol=new Map();
+      for(const d of candidates){
+        if(!byCol.has(d.col))byCol.set(d.col,[]);
+        byCol.get(d.col).push(d.value);
+      }
+      const distinct=[...byCol.keys()].sort((a,b)=>a-b);
+      if(distinct.length>=2){
+        headerIndex=Math.min(pRow,...candidates.map(d=>d.row));
+        const width=Math.max(...rs.slice(headerIndex,Math.min(rs.length,headerIndex+4)).map(r=>r.length),pCol+1);
+        header=Array.from({length:width},(_,c)=>
+          rs.slice(headerIndex,Math.min(rs.length,headerIndex+4))
+            .map(r=>clean(r[c]||"")).filter(Boolean).join(" ")
+        );
+        particularsCol=pCol;
+        dateCols=distinct.filter(c=>c!==particularsCol)
+          .filter(c=>looksLikeDateYear(header[c]||candidates.filter(d=>d.col===c).map(d=>d.value).join(" ")));
+      }
+    }
+  }
 
-  /* The financial-table contract is one Particulars column plus at least
-     two date/year columns for a multi-year statement. */
-  const particularsCol=Math.max(0, header.findIndex(isParticularsHeader));
-  if(dateCols.length<2)return null;
+  /* Final geometry-free fallback for the common 3-column financial form:
+     identify a row containing a particulars-like label plus at least two
+     amount/date cells, while still requiring evidence of a year/date header
+     somewhere nearby. This never changes the PDF extraction structure. */
+  if(headerIndex<0){
+    for(let i=0;i<Math.min(rs.length,10);i++){
+      const r=rs[i];
+      const dateEvidence=r.filter(looksLikeDateYear).length;
+      const amountEvidence=r.filter(isAmountCell).length;
+      const textEvidence=r.some(isParticularsHeader);
+      if(textEvidence && (dateEvidence>=2 || amountEvidence>=2)){
+        headerIndex=i;
+        header=r.map(clean);
+        particularsCol=Math.max(0,r.findIndex(isParticularsHeader));
+        dateCols=r.map((v,c)=>looksLikeDateYear(v)?c:-1).filter(c=>c>=0);
+        if(dateCols.length<2){
+          dateCols=r.map((v,c)=>c!==particularsCol && isAmountCell(v)?c:-1).filter(c=>c>=0);
+        }
+        break;
+      }
+    }
+  }
+
+  if(headerIndex<0 || particularsCol<0 || dateCols.length<2)return null;
 
   const usedCols=[particularsCol,...dateCols.filter(i=>i!==particularsCol)]
+    .filter((v,i,a)=>a.indexOf(v)===i)
     .sort((a,b)=>a-b);
   if(usedCols.length<3)return null;
 
-  const table=[usedCols.map(i=>header[i]||"")];
-
+  /* Build the authoritative 2-D financial table from reconstructed rows.
+     Header fragments are consumed only through headerIndex; data rows are
+     never flattened and their multi-word Particulars remain one field. */
+  const table=[usedCols.map(i=>clean(header[i]||""))];
   let meaningfulRows=0;
+
   for(let i=headerIndex+1;i<rs.length;i++){
     const r=rs[i];
     const label=clean(r[particularsCol]||"");
     const values=usedCols.slice(1).map(c=>clean(r[c]||""));
-
-    /* Stop only after the table has started and a later section is clearly
-       unrelated. Keep legitimate financial rows even when some amounts are
-       blank. */
     const numericCount=values.filter(isAmountCell).length;
     const hasAnyValue=label || values.some(Boolean);
 
     if(!hasAnyValue){
-      if(meaningfulRows>0) break;
+      if(meaningfulRows>0)break;
       continue;
     }
 
-    /* Ignore obvious trailing page/document prose once a financial table has
-       begun, but keep headings/totals with a particulars label. */
+    /* A row can legitimately contain a text-only financial heading or total.
+       Preserve it; only discard long narrative prose after data has started. */
     const proseWords=(label.match(/[A-Za-z]+/g)||[]).length;
     const looksLikeNarrative=proseWords>10 && numericCount===0 && values.every(v=>!v);
-    if(looksLikeNarrative && meaningfulRows>0) break;
+    if(looksLikeNarrative && meaningfulRows>0)break;
 
     table.push([label,...values]);
-    if(label || numericCount>0) meaningfulRows++;
+    if(label || numericCount>0)meaningfulRows++;
   }
 
   if(table.length<2)return null;
 
-  /* Trim completely empty trailing columns/rows without splitting fields. */
   const cleaned=normalise(table);
-  if(cleaned.length<2 || Math.max(...cleaned.map(r=>r.length))<3)return null;
+  if(cleaned.length<2 || Math.max(...cleaned.map(r=>r.length),0)<3)return null;
+
+  /* Require actual financial evidence below the header. This prevents a
+     document title plus unrelated year references from being accepted. */
+  const body=cleaned.slice(1);
+  const financialEvidence=body.filter(r=>
+    r.slice(1).some(isAmountCell) || r.some(v=>looksLikeDateYear(v))
+  ).length;
+  if(financialEvidence<1)return null;
 
   return cleaned;
 }
@@ -636,13 +713,13 @@ function download(kind){
     XLSX.utils.book_append_sheet(wb,ws,"Converted");
 
     /* SheetJS writeFile handles the platform-specific file save. */
-    XLSX.writeFile(wb,`${name}_converted_v8.5.xlsx`);
+    XLSX.writeFile(wb,`${name}_converted_v8.5.1.xlsx`);
     setStatus("Excel file prepared from the same Preview data.");
   }else{
     const ws=XLSX.utils.aoa_to_sheet(data);
     const csv=XLSX.utils.sheet_to_csv(ws);
     const blob=new Blob(["\ufeff"+csv],{type:"text/csv;charset=utf-8"});
-    saveBlob(blob,`${name}_converted_v8.5.csv`);
+    saveBlob(blob,`${name}_converted_v8.5.1.csv`);
     setStatus("CSV file prepared from the same Preview data.");
   }
 }
