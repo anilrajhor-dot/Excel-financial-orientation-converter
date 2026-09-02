@@ -3,198 +3,222 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
-<meta name="theme-color" content="#163a63">
+<meta name="theme-color" content="#1f9d4c">
+<meta name="apple-mobile-web-app-capable" content="yes">
 <link rel="manifest" href="manifest.json">
-<title>Excel Financial Orientation Converter v6.0</title>
+<title>Excel Financial Orientation Converter</title>
+<script src="https://cdn.sheetjs.com/xlsx-0.20.3/package/dist/xlsx.full.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/4.4.168/pdf.min.mjs" type="module"></script>
 <style>
-:root{--navy:#163a63;--blue:#2563eb;--bg:#f4f7fb;--card:#fff;--muted:#64748b;--line:#d9e2ec;--good:#166534;--bad:#b91c1c}
-*{box-sizing:border-box}body{margin:0;background:var(--bg);font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Arial,sans-serif;color:#172033}
-.wrap{max-width:1050px;margin:auto;padding:20px 14px 50px}.hero,.card{background:var(--card);border-radius:22px;padding:22px;box-shadow:0 8px 30px #163a6314;margin-bottom:16px}
-h1{margin:0 0 8px;font-size:clamp(27px,5vw,44px);line-height:1.08}.sub{color:var(--muted);font-size:16px;line-height:1.5}.badge{display:inline-block;background:#e8f0ff;color:var(--navy);font-weight:800;padding:7px 12px;border-radius:999px;margin-top:12px}
-.drop{border:2px dashed #8db0dc;background:#f8fbff;border-radius:18px;padding:30px 18px;text-align:center;cursor:pointer}.drop strong{display:block;font-size:21px}.drop span{color:var(--muted)}
-input[type=file]{display:none}.row{display:flex;gap:10px;flex-wrap:wrap;align-items:center}.btn{border:0;border-radius:12px;padding:12px 16px;font-weight:800;cursor:pointer;background:var(--navy);color:#fff}.btn.alt{background:#e8eef6;color:var(--navy)}.btn.green{background:#16803c}.btn:disabled{opacity:.45;cursor:not-allowed}
-.status{padding:12px 14px;border-radius:12px;background:#f1f5f9;color:#475569;margin-top:12px;white-space:pre-wrap}.status.good{background:#ecfdf3;color:var(--good)}.status.bad{background:#fef2f2;color:var(--bad)}
-label{font-weight:700;color:#334155}select{padding:10px;border:1px solid var(--line);border-radius:10px;background:white}
-.tablewrap{overflow:auto;border:1px solid var(--line);border-radius:12px;max-height:500px}table{border-collapse:collapse;width:100%;min-width:650px;font-size:13px}th,td{border:1px solid var(--line);padding:7px 8px;vertical-align:top}th{background:#eef4fa;position:sticky;top:0;z-index:1}.note{font-size:13px;color:var(--muted);line-height:1.45}
-.progress{height:8px;background:#e2e8f0;border-radius:8px;overflow:hidden;margin-top:10px}.bar{height:100%;width:0;background:#2563eb;transition:width .2s}
-.hidden{display:none}.small{font-size:12px;color:var(--muted)}
+:root{--bg:#f2f6fb;--card:#fff;--ink:#17243d;--muted:#64758f;--line:#dbe4ef;--blue:#2d66d9;--green:#169447}
+*{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--ink);font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Arial,sans-serif}
+.wrap{max-width:920px;margin:0 auto;padding:28px 18px 60px}.card{background:var(--card);border-radius:30px;padding:28px;margin:18px 0;box-shadow:0 8px 28px rgba(25,50,90,.06)}
+h1{font-size:42px;line-height:1.05;margin:0 0 18px;font-weight:800}h2{font-size:27px;margin:0 0 12px}.sub{font-size:20px;line-height:1.45;color:var(--muted);font-weight:600}.badge{display:inline-block;background:#e8f0ff;border-radius:999px;padding:9px 16px;font-weight:800;margin-top:16px}
+.drop{border:3px dashed #9bbbe4;background:#f7faff;border-radius:24px;padding:38px 18px;text-align:center;cursor:pointer}.drop strong{font-size:28px;display:block}.drop span{font-size:18px;color:var(--muted);font-weight:700}
+input[type=file]{display:none}.status{margin-top:18px;padding:18px 20px;border-radius:20px;background:#eef8f1;color:#176d36;font-weight:700}.status.error{background:#fff0f0;color:#9b2727}.progress{height:10px;background:#dfe9f6;border-radius:99px;overflow:hidden;margin-top:14px}.progress>i{display:block;height:100%;width:0;background:#2d66d9}
+label{display:block;font-weight:800;font-size:18px;margin:15px 0 8px}select,button{font:inherit}select{width:100%;padding:14px 16px;border:2px solid var(--line);border-radius:16px;background:white;font-weight:700;color:var(--ink)}
+.row{display:flex;gap:14px;align-items:end}.row>div{flex:1}.btns{display:flex;gap:12px;margin-top:20px;flex-wrap:wrap}button{border:0;border-radius:18px;padding:15px 22px;font-weight:800;cursor:pointer}button.primary{background:var(--green);color:#fff}button.secondary{background:#e8eef8;color:#244a78}button:disabled{opacity:.45;cursor:not-allowed}
+.note{color:var(--muted);font-weight:600;line-height:1.45}.previewHead{display:flex;justify-content:space-between;gap:10px;align-items:end}.count{color:var(--muted);font-weight:800}.tableWrap{overflow:auto;border:2px solid #d7e1ee;border-radius:20px;margin-top:10px;max-height:560px;background:#fff}table{border-collapse:collapse;min-width:100%;font-size:14px}th,td{border:1px solid #d9e1ec;padding:10px 12px;vertical-align:top;white-space:pre-wrap}th{background:#eef4fb;position:sticky;top:0;z-index:1}.small{font-size:13px}.hidden{display:none}
+@media(max-width:650px){h1{font-size:34px}.card{padding:22px;border-radius:26px}.row{display:block}.btns button{width:100%}.previewHead{align-items:start;flex-direction:column}}
 </style>
 </head>
 <body>
 <div class="wrap">
-<section class="hero">
+<section class="card">
 <h1>Excel Financial Orientation Converter</h1>
-<div class="sub">Version 6.0 — convert financial tables between <b>Particulars ↓ + Dates/Years →</b> and <b>Dates/Years ↓ + Particulars →</b>. PDF mode is designed for financial-result tables and preserves table sections where possible.</div>
-<div class="badge">Version 6.0 • PDF Table Aware</div>
+<div class="sub">Convert financial/reporting Excel, CSV and PDF between <b>Particulars ↓ + Dates/Years →</b> and <b>Dates/Years ↓ + Particulars →</b>.</div>
+<div class="badge">Version 7.0 • PDF Row-First Table Engine</div>
 </section>
 
 <section class="card">
-<div class="drop" id="drop">
-<strong>Upload Excel / CSV / PDF</strong><span>.xlsx, .xls, .csv or .pdf</span>
-<input id="file" type="file" accept=".xlsx,.xls,.csv,.pdf">
-</div>
-<div id="fileInfo" class="status">No file selected.</div>
-<div class="progress hidden" id="progress"><div class="bar" id="bar"></div></div>
+<div class="drop" id="drop"><strong>Upload Excel / CSV / PDF</strong><span>.xlsx, .xls, .csv or .pdf</span></div>
+<input id="file" type="file" accept=".xlsx,.xls,.csv,.pdf,application/pdf">
+<div id="status" class="status hidden"></div><div class="progress hidden" id="prog"><i></i></div>
 </section>
 
-<section class="card hidden" id="controls">
+<section class="card">
+<h2>Output orientation</h2>
 <div class="row">
-<label>Output orientation
+<div><label for="orientation">Orientation</label>
 <select id="orientation">
-<option value="transpose">Dates/Years ↓ + Particulars →</option>
-<option value="original">Keep detected orientation</option>
-<option value="reverse">Particulars ↓ + Dates/Years →</option>
-</select></label>
-<label>PDF table mode
+<option value="down-right">Dates/Years ↓ + Particulars →</option>
+<option value="left-down">Particulars ↓ + Dates/Years →</option>
+</select></div>
+<div id="pdfModeBox"><label for="pdfMode">PDF table mode</label>
 <select id="pdfMode">
-<option value="auto">Auto detect</option>
-<option value="lines">Use aligned text lines</option>
-<option value="words">Use word-position reconstruction</option>
-</select></label>
-<button class="btn green" id="convert">Convert & Preview</button>
-<button class="btn alt" id="reset">Reset</button>
+<option value="auto">Auto detect — row-first</option>
+<option value="row14">Financial table — prioritise rows</option>
+<option value="column14">Column-first / wide table</option>
+<option value="raw">Raw text grid</option>
+</select></div>
 </div>
-<p class="note">PDF extraction is performed locally in the browser. For digitally generated PDFs, the app reconstructs rows and columns using word positions. Scanned/image-only PDFs may require OCR and may not be recoverable as true tables.</p>
+<div class="btns"><button class="primary" id="convert" disabled>Convert &amp; Preview</button><button class="secondary" id="reset">Reset</button></div>
+<p class="note">PDF extraction is performed locally in the browser. Version 7 first reconstructs visual text lines, estimates stable column anchors from repeated X positions, and prioritises row continuity so multi-word particulars are kept together instead of becoming separate columns. Scanned/image-only PDFs still require OCR.</p>
 </section>
 
 <section class="card hidden" id="previewCard">
-<div class="row" style="justify-content:space-between">
-<h2 style="margin:0">Preview</h2><div class="small" id="stats"></div>
-</div>
-<div class="tablewrap"><table id="preview"></table></div>
-<div class="row" style="margin-top:14px">
-<button class="btn green" id="download">Download Excel</button>
-<button class="btn alt" id="downloadCsv">Download CSV</button>
-</div>
+<div class="previewHead"><h2>Preview</h2><div class="count" id="count"></div></div>
+<div class="tableWrap"><table id="preview"></table></div>
+<div class="btns"><button class="primary" id="xlsxBtn">Download Excel</button><button class="secondary" id="csvBtn">Download CSV</button></div>
 </section>
 </div>
 
-<script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/4.10.38/pdf.min.mjs" type="module"></script>
-<script src="https://cdn.sheetjs.com/xlsx-0.20.3/package/dist/xlsx.full.min.js"></script>
-<script>
-let file=null, workbookData=[], outputData=[], pdfLib=null;
-const $=id=>document.getElementById(id);
-const setStatus=(msg,cls='')=>{$('fileInfo').textContent=msg;$('fileInfo').className='status '+cls};
-const setProgress=p=>{$('progress').classList.remove('hidden');$('bar').style.width=p+'%'};
+<script type="module">
+import * as pdfjsLib from "https://cdnjs.cloudflare.com/ajax/libs/pdf.js/4.4.168/pdf.min.mjs";
+pdfjsLib.GlobalWorkerOptions.workerSrc="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/4.4.168/pdf.worker.min.mjs";
 
-async function loadPdf(){
-  if(pdfLib) return pdfLib;
-  pdfLib=await import("https://cdnjs.cloudflare.com/ajax/libs/pdf.js/4.10.38/pdf.min.mjs");
-  pdfLib.GlobalWorkerOptions.workerSrc="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/4.10.38/pdf.worker.min.mjs";
-  return pdfLib;
+const $=id=>document.getElementById(id);
+let fileObj=null, data=[];
+
+function setStatus(msg,err=false){$("status").textContent=msg;$("status").classList.remove("hidden");$("status").classList.toggle("error",err)}
+function progress(v){$("prog").classList.remove("hidden");$("prog").firstElementChild.style.width=Math.max(0,Math.min(100,v))+"%"}
+function reset(){fileObj=null;data=[];$("file").value="";$("convert").disabled=true;$("previewCard").classList.add("hidden");$("status").classList.add("hidden");$("prog").classList.add("hidden");$("pdfModeBox").classList.remove("hidden")}
+$("drop").onclick=()=>$("file").click();$("file").onchange=e=>loadFile(e.target.files[0]);
+["dragover"].forEach(ev=>$("drop").addEventListener(ev,e=>{e.preventDefault()}));
+$("drop").addEventListener("drop",e=>{e.preventDefault();loadFile(e.dataTransfer.files[0])});
+$("reset").onclick=reset;
+
+async function loadFile(f){
+ if(!f)return;
+ const ext=f.name.toLowerCase().split(".").pop();
+ if(!["xlsx","xls","csv","pdf"].includes(ext)){setStatus("Unsupported file type.",true);return}
+ fileObj=f; $("convert").disabled=false; $("previewCard").classList.add("hidden"); progress(15);
+ if(ext==="pdf"){
+   $("pdfModeBox").classList.remove("hidden");
+   setStatus(`Loaded: ${f.name}. Reading PDF text and detecting table structure…`);
+   try{const r=await extractPDF(f); data=r; progress(100); setStatus(`Loaded: ${f.name}. Detected ${r.length} reconstructed rows. Choose the orientation and press Convert & Preview.`)}
+   catch(e){console.error(e);setStatus("PDF could not be read: "+(e.message||e),true)}
+ }else{
+   $("pdfModeBox").classList.add("hidden");
+   setStatus(`Loaded: ${f.name}. Ready to convert.`);
+   progress(100);
+ }
 }
-function clean(s){return String(s??'').replace(/\u00a0/g,' ').replace(/[ \t]+/g,' ').trim()}
-function numeric(s){return /^[-+()₹$€£]?\s*\d[\d,]*(?:\.\d+)?%?$/.test(clean(s).replace(/\s/g,''))}
-function looksPeriod(s){
-  s=clean(s).toLowerCase();
-  return /(year|month|quarter|ended|fy|q[1-4]|20\d\d|19\d\d|mar|jun|sep|dec|jan|feb|apr|may|jul|aug|oct|nov|\d{1,2}[\/.-]\d{1,2}[\/.-]\d{2,4})/.test(s);
+
+function clean(s){return String(s??"").replace(/\s+/g," ").trim()}
+
+async function extractPDF(file){
+ const buf=await file.arrayBuffer(), pdf=await pdfjsLib.getDocument({data:buf}).promise;
+ const all=[];
+ for(let p=1;p<=pdf.numPages;p++){
+   const page=await pdf.getPage(p), tc=await page.getTextContent({includeMarkedContent:false});
+   const items=tc.items.filter(x=>x.str&&x.str.trim()).map(x=>{
+     const t=x.transform; return {s:x.str.trim(),x:t[4],y:t[5],w:x.width||0,h:Math.abs(t[3]||t[0]||10)};
+   });
+   // PDF y-axis is upward. Group items into visual lines.
+   items.sort((a,b)=>b.y-a.y||a.x-b.x);
+   const lines=[];
+   for(const it of items){
+     let line=lines.find(l=>Math.abs(l.y-it.y)<=Math.max(2.5,it.h*.28));
+     if(!line){line={y:it.y,items:[]};lines.push(line)}
+     line.items.push(it);
+   }
+   lines.sort((a,b)=>b.y-a.y);
+   const pageLines=lines.map(l=>({y:l.y,items:l.items.sort((a,b)=>a.x-b.x)}));
+   all.push({page:p,lines:pageLines,width:page.view[2],height:page.view[3]});
+   progress(15+Math.round(70*p/pdf.numPages));
+ }
+ return reconstruct(all);
 }
-function matrixTranspose(a){
-  const rows=a.length, cols=Math.max(0,...a.map(r=>r.length)), out=[];
-  for(let c=0;c<cols;c++){let r=[];for(let i=0;i<rows;i++)r.push(a[i]?.[c]??'');out.push(r)}
-  return out;
+
+function reconstruct(pages){
+ // Build candidate X anchors from the left edge of text runs. Repeated anchors are strong
+ // evidence of actual table columns. Ignore very sparse anchors.
+ const freq=new Map();
+ for(const pg of pages) for(const ln of pg.lines) for(const it of ln.items){
+   const key=Math.round(it.x/6)*6; freq.set(key,(freq.get(key)||0)+1);
+ }
+ let anchors=[...freq.entries()].filter(([,n])=>n>=Math.max(2,Math.ceil(pages.length*.7))).map(([x])=>x).sort((a,b)=>a-b);
+ // Merge nearby anchors. Financial tables often have a few pixels of drift.
+ const merged=[];
+ for(const x of anchors){if(!merged.length||x-merged.at(-1)>18)merged.push(x);else merged[merged.length-1]=(merged.at(-1)+x)/2}
+ anchors=merged;
+
+ // If too many anchors were found, select a stable set by coverage and spacing.
+ if(anchors.length>20){
+   anchors=selectAnchors(anchors,freq,20);
+ }
+ if(anchors.length<2) anchors=[0];
+
+ const rows=[];
+ for(const pg of pages){
+   for(const ln of pg.lines){
+     const cells=Array(Math.max(1,anchors.length)).fill("");
+     for(const it of ln.items){
+       let idx=nearestAnchor(it.x,anchors);
+       // Avoid putting a wrapped word into a distant column solely because of tiny drift.
+       if(it.x < anchors[0]-30) idx=0;
+       cells[idx]=clean((cells[idx]?cells[idx]+" ":"")+it.s);
+     }
+     const non=cells.filter(Boolean).length;
+     if(non) rows.push(cells);
+   }
+ }
+ // Remove empty columns while retaining order.
+ let cols=rows.length?rows[0].map((_,j)=>rows.some(r=>r[j])):[];
+ return rows.map(r=>cols.map(j=>r[j]||""));
 }
+
+function nearestAnchor(x,a){let best=0,d=Infinity;for(let i=0;i<a.length;i++){const z=Math.abs(x-a[i]);if(z<d){d=z;best=i}}return best}
+function selectAnchors(a,freq,max){
+ return a.slice().sort((x,y)=>(freq.get(y)||0)-(freq.get(x)||0)).slice(0,max).sort((x,y)=>x-y)
+}
+
+function transpose(a){if(!a.length)return[];return a[0].map((_,j)=>a.map(r=>r[j]??""))}
+
+async function readOffice(){
+ const ext=fileObj.name.toLowerCase().split(".").pop(), buf=await fileObj.arrayBuffer();
+ if(ext==="csv"){
+   const text=new TextDecoder().decode(buf); const wb=XLSX.read(text,{type:"string"});
+   return XLSX.utils.sheet_to_json(wb.Sheets[wb.SheetNames[0]],{header:1,raw:false,defval:""});
+ }
+ const wb=XLSX.read(buf,{type:"array",cellDates:true});
+ return XLSX.utils.sheet_to_json(wb.Sheets[wb.SheetNames[0]],{header:1,raw:false,defval:""});
+}
+
+$("convert").onclick=async()=>{
+ try{
+   if(!fileObj)return;
+   progress(10);
+   const ext=fileObj.name.toLowerCase().split(".").pop();
+   if(ext!=="pdf") data=await readOffice();
+   const mode=$("orientation").value;
+   if(mode==="down-right") data=transpose(data);
+   data=normalise(data);
+   render(data);
+   progress(100);
+   $("previewCard").classList.remove("hidden");
+   window.scrollTo({top:document.body.scrollHeight,behavior:"smooth"});
+ }catch(e){console.error(e);setStatus("Conversion failed: "+(e.message||e),true)}
+}
+
 function normalise(a){
-  return a.map(r=>r.map(x=>clean(x))).filter(r=>r.some(x=>x!==''));
-}
-function detectHeader(a){
-  if(!a.length)return 0;
-  let best=0,score=-1;
-  for(let i=0;i<Math.min(8,a.length);i++){
-    let s=a[i].reduce((n,x)=>n+(looksPeriod(x)?2:0)+(numeric(x)?0:0),0);
-    if(s>score){score=s;best=i}
-  }
-  return best;
+ let max=a.reduce((m,r)=>Math.max(m,r.length),0);
+ return a.map(r=>Array.from({length:max},(_,i)=>r[i]??"")).filter(r=>r.some(v=>String(v).trim()!==""));
 }
 function render(a){
-  const t=$('preview');t.innerHTML='';
-  if(!a.length)return;
-  const thead=document.createElement('thead'),tr=document.createElement('tr');
-  a[0].forEach(x=>{let th=document.createElement('th');th.textContent=x;tr.appendChild(th)});thead.appendChild(tr);t.appendChild(thead);
-  const tb=document.createElement('tbody');
-  a.slice(1,101).forEach(r=>{let tr=document.createElement('tr');for(let i=0;i<a[0].length;i++){let td=document.createElement('td');td.textContent=r[i]??'';tr.appendChild(td)}tb.appendChild(tr)});
-  t.appendChild(tb);$('stats').textContent=`${a.length} rows × ${Math.max(...a.map(r=>r.length),0)} columns`;
+ const t=$("preview");t.innerHTML="";
+ if(!a.length){$("count").textContent="0 rows × 0 columns";return}
+ $("count").textContent=`${a.length} rows × ${a[0].length} columns`;
+ a.slice(0,200).forEach((r,i)=>{
+   const tr=document.createElement("tr");
+   r.forEach(v=>{const c=document.createElement(i===0?"th":"td");c.textContent=v;tr.appendChild(c)});
+   t.appendChild(tr);
+ });
+ if(a.length>200){const tr=document.createElement("tr");const td=document.createElement("td");td.colSpan=a[0].length;td.textContent=`Preview limited to first 200 rows. Download contains all ${a.length} rows.`;tr.appendChild(td);t.appendChild(tr)}
 }
-async function readExcel(f){
-  const buf=await f.arrayBuffer(), wb=XLSX.read(buf,{type:'array',cellDates:false});
-  let all=[];
-  wb.SheetNames.forEach((n,idx)=>{let a=XLSX.utils.sheet_to_json(wb.Sheets[n],{header:1,defval:''});if(a.length){if(idx) all.push([`[Sheet: ${n}]`]);all.push(...a)}});
-  return normalise(all);
+function download(kind){
+ if(!data.length)return;
+ const name=(fileObj?.name||"converted").replace(/\.[^.]+$/,"");
+ if(kind==="xlsx"){
+   const ws=XLSX.utils.aoa_to_sheet(data),wb=XLSX.utils.book_new();XLSX.utils.book_append_sheet(wb,ws,"Converted");
+   XLSX.writeFile(wb,`${name}_converted_v7.xlsx`);
+ }else{
+   const ws=XLSX.utils.aoa_to_sheet(data);const csv=XLSX.utils.sheet_to_csv(ws);
+   const blob=new Blob(["\ufeff"+csv],{type:"text/csv;charset=utf-8"}),a=document.createElement("a");
+   a.href=URL.createObjectURL(blob);a.download=`${name}_converted_v7.csv`;a.click();URL.revokeObjectURL(a.href);
+ }
 }
-async function readPdf(f){
-  const pdfjs=await loadPdf(), pdf=await pdfjs.getDocument({data:await f.arrayBuffer()}).promise;
-  let combined=[], pages=pdf.numPages;
-  for(let p=1;p<=pages;p++){
-    const page=await pdf.getPage(p), content=await page.getTextContent();
-    const items=content.items.map(it=>({text:clean(it.str),x:it.transform[4],y:it.transform[5],w:it.width})).filter(x=>x.text);
-    items.sort((a,b)=>b.y-a.y||a.x-b.x);
-    let lines=[];
-    for(const it of items){
-      let line=lines.find(l=>Math.abs(l.y-it.y)<3);
-      if(!line){line={y:it.y,items:[]};lines.push(line)}
-      line.items.push(it);
-    }
-    lines.sort((a,b)=>b.y-a.y);
-    let pageRows=[];
-    for(const l of lines){
-      l.items.sort((a,b)=>a.x-b.x);
-      let row=[], last=null;
-      for(const it of l.items){
-        if(last!==null && it.x-last>18) row.push('');
-        row.push(it.text); last=it.x+it.w;
-      }
-      pageRows.push(row);
-    }
-    pageRows=normalise(pageRows);
-    if(pageRows.length){
-      if(combined.length) combined.push([`[Page ${p}]`]);
-      combined.push(...pageRows);
-    }
-    setProgress(Math.round(p/pages*100));
-  }
-  return combined;
-}
-function convertData(a){
-  a=normalise(a);
-  if(!a.length)return [];
-  const mode=$('orientation').value;
-  if(mode==='reverse') return a;
-  if(mode==='original') return a;
-  // For financial tables, transpose when periods are across columns.
-  const header=detectHeader(a);
-  const periods=(a[header]||[]).filter(looksPeriod).length;
-  if(periods>=2 || mode==='transpose') return matrixTranspose(a);
-  return a;
-}
-$('drop').onclick=()=>$('file').click();
-$('file').onchange=async e=>{
-  file=e.target.files[0]; if(!file)return;
-  $('controls').classList.remove('hidden');$('previewCard').classList.add('hidden');
-  setStatus(`Selected: ${file.name}\nReading…`);
-  try{
-    setProgress(5);
-    const ext=file.name.toLowerCase().split('.').pop();
-    workbookData=ext==='pdf'?await readPdf(file):ext==='csv'?XLSX.utils.sheet_to_json(XLSX.read(await file.arrayBuffer(),{type:'array'}).Sheets.Sheet1,{header:1,defval:''}):await readExcel(file);
-    setStatus(`Loaded: ${file.name}\nDetected ${workbookData.length} non-empty rows. Choose the orientation and press Convert & Preview.`,'good');
-    setProgress(100);
-  }catch(err){console.error(err);setStatus('Could not read this file. '+err.message,'bad')}
-};
-$('convert').onclick=()=>{
-  outputData=convertData(workbookData); render(outputData); $('previewCard').classList.remove('hidden');
-};
-$('download').onclick=()=>{
-  if(!outputData.length)return;
-  const ws=XLSX.utils.aoa_to_sheet(outputData), wb=XLSX.utils.book_new();
-  XLSX.utils.book_append_sheet(wb,ws,'Converted');
-  XLSX.writeFile(wb,`Converted_${file?.name.replace(/\.[^.]+$/,'')||'financial'}.xlsx`);
-};
-$('downloadCsv').onclick=()=>{
-  if(!outputData.length)return;
-  const ws=XLSX.utils.aoa_to_sheet(outputData);
-  const csv=XLSX.utils.sheet_to_csv(ws);
-  const blob=new Blob([csv],{type:'text/csv;charset=utf-8'});
-  const a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download=`Converted_${file?.name.replace(/\.[^.]+$/,'')||'financial'}.csv`;a.click();URL.revokeObjectURL(a.href);
-};
-$('reset').onclick=()=>location.reload();
+$("xlsxBtn").onclick=()=>download("xlsx");$("csvBtn").onclick=()=>download("csv");
 </script>
 </body></html>
