@@ -45,10 +45,13 @@ button.secondary{background:#e8eef8;color:#244a78}
 button:disabled{opacity:.45;cursor:not-allowed}
 .note{color:var(--muted);font-weight:600;line-height:1.45}
 .previewHead{display:flex;justify-content:space-between;gap:10px;align-items:end}
+.previewHint{color:var(--muted);font-size:13px;font-weight:700;margin-top:8px}.previewHint.hidden{display:none}
 .count{color:var(--muted);font-weight:800}
-.tableWrap{overflow:auto;border:2px solid #d7e1ee;border-radius:20px;margin-top:10px;max-height:560px;background:#fff}
-table{border-collapse:collapse;min-width:100%;font-size:14px}
+.tableWrap{overflow:auto;overflow-x:auto;border:2px solid #d7e1ee;border-radius:20px;margin-top:10px;max-height:560px;background:#fff;-webkit-overflow-scrolling:touch}
+table{border-collapse:collapse;min-width:100%;width:max-content;table-layout:auto;font-size:14px}
 th,td{border:1px solid #d9e1ec;padding:10px 12px;vertical-align:top;white-space:pre-wrap}
+th:first-child,td:first-child{min-width:180px}
+th:not(:first-child),td:not(:first-child){min-width:110px}
 th{background:#eef4fb;position:sticky;top:0;z-index:1}
 .hidden{display:none}
 @media(max-width:650px){
@@ -66,7 +69,7 @@ th{background:#eef4fb;position:sticky;top:0;z-index:1}
 <section class="card">
 <h1>Excel Financial Orientation Converter</h1>
 <div class="sub">Convert financial/reporting Excel, CSV and PDF between <b>Particulars ↓ + Dates/Years →</b> and <b>Dates/Years ↓ + Particulars →</b>.</div>
-<div class="badge">Version 8.5.4 • Complete Financial Table Fix</div>
+<div class="badge">Version 8.5.4 • Mobile Preview Fix</div>
 </section>
 
 <section class="card">
@@ -103,11 +106,12 @@ th{background:#eef4fb;position:sticky;top:0;z-index:1}
 <button class="primary" id="convert" disabled>Convert &amp; Preview</button>
 <button class="secondary" id="reset">Reset</button>
 </div>
-<p class="note">PDF extraction is performed locally in the browser. Version 8.5.4 keeps reconstructed PDF rows as logical records and detects the actual financial-table structure before orientation conversion. It groups text by visual Y position and uses X positions to form cells, reducing the chance that multi-word particulars become separate columns. Scanned/image-only PDFs still require OCR. Financial PDFs are first identified as a logical table before orientation conversion.</p>
+<p class="note">PDF extraction is performed locally in the browser. Version 8.5.3 keeps reconstructed PDF rows as logical records and detects the actual financial-table structure before orientation conversion. It groups text by visual Y position and uses X positions to form cells, reducing the chance that multi-word particulars become separate columns. Scanned/image-only PDFs still require OCR. Financial PDFs are first identified as a logical table before orientation conversion.</p>
 </section>
 
 <section class="card hidden" id="previewCard">
 <div class="previewHead"><h2>Preview</h2><div class="count" id="count"></div></div>
+<div class="previewHint hidden" id="previewHint">Wide table — swipe horizontally to view all columns.</div>
 <div class="tableWrap"><table id="preview"></table></div>
 <div class="btns">
 <button class="primary" id="xlsxBtn">Download Excel</button>
@@ -363,7 +367,7 @@ function detectFinancialTable(rows){
   if(!rs.length)return null;
 
   /*
-   * Version 8.5.4: candidate selection only.
+   * Version 8.5.3: candidate selection only.
    *
    * The existing PDF extraction and reconstruction are deliberately untouched.
    * At this stage reconstructed rows may be "vertical" logical records:
@@ -502,28 +506,11 @@ function detectFinancialTable(rows){
       if(!label && !v1 && !v2) continue;
       if(isParticularsHeader(label)) continue;
 
-      const n1=isAmountCell(v1);
-      const n2=isAmountCell(v2);
-      const hasLabel=!!label;
-      const looksLikeFinancialRow = hasLabel && (n1 || n2);
-
-      if(looksLikeFinancialRow){
+      if(label || isAmountCell(v1) || isAmountCell(v2)){
         table.push([label,v1,v2]);
-        evidence++;
-        continue;
+        if(isAmountCell(v1) || isAmountCell(v2)) evidence++;
       }
-
-      // A blank row inside the table is harmless.
-      if(!label && !v1 && !v2) continue;
-
-      // Ignore repeated header rows.
-      if(isParticularsHeader(label) || looksLikeDateYear(v1) || looksLikeDateYear(v2)){
-        continue;
-      }
-
-      // Once the financial body has started, a non-financial row marks the
-      // end of the table. Do not absorb document text into Particulars.
-      if(evidence>=2) break;
+      if(evidence>=2 && table.length>=3) break;
     }
 
     if(evidence>=2){
@@ -534,7 +521,7 @@ function detectFinancialTable(rows){
   return null;
 }
 
-/* Version 8.5.4 scope: financial-table candidate/header selection only.
+/* Version 8.5.3 scope: financial-table candidate/header selection only.
    PDF.js, extraction and row reconstruction remain unchanged. */
 /* If a genuine financial table is present, use it as the authoritative
    2-D structure. Otherwise preserve row-first PDF data exactly as before. */
@@ -684,9 +671,14 @@ function render(a){
   t.innerHTML="";
   if(!a.length){
     $("count").textContent="0 rows × 0 columns";
+    const hint=$("previewHint");
+    if(hint) hint.classList.add("hidden");
     return;
   }
-  $("count").textContent=`${a.length} rows × ${a[0].length} columns`;
+  const columnCount=Math.max(...a.map(r=>r.length),0);
+  $("count").textContent=`${a.length} rows × ${columnCount} columns`;
+  const hint=$("previewHint");
+  if(hint) hint.classList.toggle("hidden",columnCount<=6);
 
   a.slice(0,200).forEach((r,i)=>{
     const tr=document.createElement("tr");
@@ -750,13 +742,13 @@ function download(kind){
     XLSX.utils.book_append_sheet(wb,ws,"Converted");
 
     /* SheetJS writeFile handles the platform-specific file save. */
-    XLSX.writeFile(wb,`${name}_converted_v8.5.4.xlsx`);
+    XLSX.writeFile(wb,`${name}_converted_v8.5.3.xlsx`);
     setStatus("Excel file prepared from the same Preview data.");
   }else{
     const ws=XLSX.utils.aoa_to_sheet(data);
     const csv=XLSX.utils.sheet_to_csv(ws);
     const blob=new Blob(["\ufeff"+csv],{type:"text/csv;charset=utf-8"});
-    saveBlob(blob,`${name}_converted_v8.5.4.csv`);
+    saveBlob(blob,`${name}_converted_v8.5.3.csv`);
     setStatus("CSV file prepared from the same Preview data.");
   }
 }
