@@ -1,11 +1,247 @@
-<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Financial PDF → Excel v27.0</title>
-<style>:root{--n:#172744;--b:#1768b5;--p:#eef5fc;--l:#d6e2f0;--g:#159447;--r:#b22e2e;--m:#617897;--bg:#f2f7fd}*{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--n);font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Arial,sans-serif}main{max-width:1100px;margin:auto;padding:20px 18px 50px}.card{background:#fff;border:3px solid var(--l);border-radius:30px;padding:28px;margin:18px 0}h1{font-size:clamp(30px,5vw,48px);margin:0 0 8px}h2{font-size:clamp(28px,4vw,42px);margin:0 0 12px}.note,.badge,.small{color:var(--m);font-weight:650;line-height:1.5}.controls,.mode,.downloads{display:flex;gap:12px;flex-wrap:wrap;align-items:center;margin-top:16px}button,.file{border:0;border-radius:24px;padding:16px 24px;font-size:18px;font-weight:800;cursor:pointer;background:#e8f0fb;color:#244d79}.primary{background:var(--b);color:#fff}.green{background:var(--g);color:#fff}.danger{background:#fff0f0;color:var(--r)}.file{border:2px dashed #aac8e8;background:#f7fbff}input{display:none}.status{display:none;margin-top:16px;padding:16px 18px;border-radius:18px;background:var(--p);font-weight:700}.status.ok{display:block;background:#effaf3;color:#19733d}.status.err{display:block;background:#fff0f0;color:var(--r)}.wrap{width:100%;overflow-x:auto;-webkit-overflow-scrolling:touch;border:3px solid var(--l);border-radius:26px;margin-top:18px;background:#fff}table{border-collapse:collapse;table-layout:auto;width:max-content;min-width:100%}th,td{border-right:2px solid var(--l);border-bottom:2px solid var(--l);padding:16px 18px;font-size:17px;vertical-align:middle;white-space:nowrap}th{background:var(--p);font-weight:850;position:sticky;top:0;z-index:2}td:not(:first-child),th:not(:first-child){text-align:right;font-variant-numeric:tabular-nums}th:last-child,td:last-child{border-right:0}tr:last-child td{border-bottom:0}.active{background:var(--b);color:#fff}</style></head><body><main>
-<section class="card"><h1>Financial PDF → Excel <span class="small">v27.0</span></h1><p class="note">Structure-first reconstruction. The app detects the logical table before rendering. Cell values remain atomic, including Indian number formatting such as ₹12,50,000.</p><div class="controls"><label class="file">📄 Choose PDF<input id="pdf" type="file" accept="application/pdf,.pdf"></label><button class="primary" id="go">Convert PDF</button><button id="sample">Load Sample Financial Table</button><button class="danger" id="reset">Reset</button></div><div id="status" class="status"></div></section>
-<section class="card"><h2>Reconstruction</h2><p class="note">Visual text is grouped into logical rows using Y positions and into cells using X positions. Multi-word particulars are not split into columns. Screen width never changes the stored matrix.</p><div id="diag" class="small"></div></section>
-<section class="card"><h2>Preview</h2><div id="shape" class="badge">No table loaded</div><div class="mode"><button id="normal" class="active">20 × 3 view</button><button id="wide">3 × 20 view</button><button id="copy">Copy table</button></div><div id="wrap" class="wrap"><div class="small" style="padding:22px">Load a sample or convert a PDF.</div></div><div class="downloads"><button class="green" id="xlsx">Download Excel</button><button id="csv">Download CSV</button></div></section></main>
-<script type="module">import * as pdfjsLib from 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/4.10.38/pdf.min.mjs';pdfjsLib.GlobalWorkerOptions.workerSrc='https://cdnjs.cloudflare.com/ajax/libs/pdf.js/4.10.38/pdf.worker.min.mjs';window.pdfjsLib=pdfjsLib;</script><script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script><script>
-const SAMPLE=[['Particulars','31-03-2026','31-03-2025'],['Revenue from Operations','12,50,000','10,80,000'],['Cost of Goods Sold','8,10,000','7,20,000'],['Gross Profit','4,40,000','3,60,000'],['Employee Benefits Expenses','1,20,000','1,00,000'],['Finance Costs','35,000','28,000'],['Depreciation and Amortisation Expenses','25,000','22,000'],['Other Operating Expenses','55,000','45,000'],['Profit Before Tax','2,05,000','1,65,000'],['Current Tax Expense','52,000','42,000'],['Profit After Tax','1,53,000','1,23,000'],['Trade Receivables','2,40,000','2,05,000'],['Inventories','1,80,000','1,55,000'],['Cash and Cash Equivalents','95,000','72,000'],['Trade Payables','1,35,000','1,20,000'],['Short-term Borrowings','80,000','65,000'],['Total Current Assets','5,15,000','4,32,000'],['Total Current Liabilities','2,15,000','1,85,000'],['Net Working Capital','3,00,000','2,47,000'],['Net Worth','8,50,000','7,10,000']];let M=[],wide=false;const $=x=>document.getElementById(x);function esc(s){return String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]))}function tr(a){return Array.from({length:Math.max(...a.map(r=>r.length))},(_,i)=>a.map(r=>r[i]??''))}function render(){if(!M.length)return;$('shape').textContent=(wide?3:20)+' rows × '+(wide?20:3)+' columns';let a=wide?tr(M):M,s='<table><thead><tr>'+a[0].map(x=>'<th>'+esc(x)+'</th>').join('')+'</tr></thead><tbody>';for(let i=1;i<a.length;i++)s+='<tr>'+a[i].map(x=>'<td>'+esc(x)+'</td>').join('')+'</tr>';$('wrap').innerHTML=s+'</tbody></table>';$('normal').classList.toggle('active',!wide);$('wide').classList.toggle('active',wide)}function status(t,ok=false){$('status').textContent=t;$('status').className='status '+(ok?'ok':'err')}
-$('sample').onclick=()=>{M=SAMPLE.map(r=>r.slice());wide=false;render();$('diag').textContent='20 data rows × 3 columns. The same matrix feeds preview, Excel and CSV.';status('Sample loaded successfully.',true)};$('reset').onclick=()=>{M=[];$('pdf').value='';$('wrap').innerHTML='<div class="small" style="padding:22px">Load a sample or convert a PDF.</div>';$('shape').textContent='No table loaded';$('diag').textContent='';$('status').className='status'};$('normal').onclick=()=>{wide=false;render()};$('wide').onclick=()=>{wide=true;render()};$('copy').onclick=async()=>{if(!M.length)return;try{await navigator.clipboard.writeText(M.map(r=>r.join('\t')).join('\n'));status('Table copied with the same rows, columns and values as the preview.',true)}catch{status('Copy blocked by browser. Use CSV download instead.')}};$('csv').onclick=()=>{if(!M.length)return;let s=M.map(r=>r.map(v=>'"'+String(v).replace(/"/g,'""')+'"').join(',')).join('\r\n');let a=document.createElement('a');a.href=URL.createObjectURL(new Blob([s],{type:'text/csv'}));a.download='financial_reconstructed_v27.csv';a.click()};$('xlsx').onclick=()=>{if(!M.length)return;let ws=XLSX.utils.aoa_to_sheet(M);ws['!cols']=M[0].map((_,c)=>({wch:Math.min(55,Math.max(14,...M.map(r=>String(r[c]??'').length)+2))}));let wb=XLSX.utils.book_new();XLSX.utils.book_append_sheet(wb,ws,'Financial Table');XLSX.writeFile(wb,'financial_reconstructed_v27.xlsx')};
-function lines(items){let L=[];for(const x of items.filter(x=>x.str.trim()).sort((a,b)=>a.y-b.y||a.x-b.x)){let l=L.find(z=>Math.abs(z.y-x.y)<Math.max(3,x.h*.55));if(!l){l={y:x.y,items:[]};L.push(l)}l.items.push(x)}return L.sort((a,b)=>a.y-b.y)}function numeric(s){return /^₹?[-+]?\d[\d,]*(\.\d+)?%?$/.test(s.replace(/[\s\u00a0]/g,''))}function reconstruct(items){let rs=lines(items).map(l=>{let g=[];for(const x of l.items){let q=g[g.length-1],gap=q?x.x-(q.x+q.w):999;let same=q&&(gap<16||(!numeric(x.str)&&!numeric(q.text)));if(same){q.text+=' '+x.str;q.w=x.x+ x.w-q.x}else g.push({x:x.x,w:x.w,text:x.str})}return g.map(x=>({x:x.x,text:x.text.trim()}))});let hi=rs.findIndex(r=>r.some(c=>/particular|revenue|31[-–]03/i.test(c.text)));if(hi<0)hi=0;let h=rs[hi];if(h.length<2)return[];let ax=h.map(c=>c.x),out=[];for(const r of rs.slice(hi)){let row=Array(ax.length).fill('');for(const c of r){let bi=0,bd=1e9;ax.forEach((a,i)=>{let d=Math.abs(c.x-a);if(d<bd){bd=d;bi=i}});row[bi]=row[bi]?row[bi]+' '+c.text:c.text}row=row.map((v,i)=>i? v.replace(/[\s\u00a0]+/g,''):v.replace(/\s+/g,' ').trim());if(row.some(Boolean))out.push(row)}return out}
-$('go').onclick=async()=>{let f=$('pdf').files[0];if(!f)return status('Please choose a PDF first.');try{status('Reading PDF and reconstructing the logical table…');let pdf=await pdfjsLib.getDocument({data:await f.arrayBuffer()}).promise,all=[];for(let p=1;p<=pdf.numPages;p++){let page=await pdf.getPage(p),c=await page.getTextContent(),v=page.getViewport({scale:1});for(const it of c.items){let t=it.transform;all.push({str:it.str,x:t[4],y:v.height-t[5],w:it.width||0,h:Math.abs(t[3])||10})}}let r=reconstruct(all);if(r.length<2||r[0].length<2)throw Error('No reliable text table could be reconstructed. Scanned/image-only PDFs need OCR.');M=r;wide=false;render();$('diag').textContent='Reconstructed '+(M.length-1)+' data rows × '+M[0].length+' columns. Preview and downloads use this exact matrix.';status('Conversion completed. Cell values are preserved; screen width does not alter the underlying data.',true)}catch(e){console.error(e);status(e.message||'Conversion failed.')}};
-</script></body></html>
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>Financial PDF → Excel v28.0</title>
+<style>
+:root{--navy:#172744;--blue:#1768b5;--pale:#eef5fc;--line:#d5e2f0;--green:#159447;--red:#b52f2f;--muted:#607897;--bg:#f3f8fd}
+*{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--navy);font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Arial,sans-serif}
+main{max-width:1100px;margin:auto;padding:18px 18px 50px}.card{background:#fff;border:3px solid var(--line);border-radius:30px;padding:28px;margin:18px 0}
+h1{font-size:clamp(31px,5vw,48px);margin:0 0 8px;font-weight:850}h2{font-size:clamp(28px,4vw,42px);margin:0 0 12px;font-weight:850}
+.note,.small,.badge{color:var(--muted);font-weight:650;line-height:1.5}.controls,.mode,.downloads{display:flex;gap:12px;flex-wrap:wrap;align-items:center;margin-top:16px}
+button,.file{border:0;border-radius:24px;padding:16px 24px;font-size:18px;font-weight:800;cursor:pointer;background:#e8f0fb;color:#244d79}
+button.primary{background:var(--blue);color:#fff}.green{background:var(--green);color:#fff}.danger{background:#fff0f0;color:var(--red)}
+.file{display:inline-flex;align-items:center;gap:10px;border:2px dashed #aac8e8;background:#f7fbff}input{display:none}
+.status{display:none;margin-top:16px;padding:17px 19px;border-radius:18px;font-weight:750}.status.show{display:block}.status.ok{background:#effaf3;color:#19733d}.status.err{background:#fff0f0;color:var(--red)}
+.tableWrap{width:100%;overflow:auto;-webkit-overflow-scrolling:touch;border:3px solid var(--line);border-radius:26px;margin-top:18px;background:#fff}
+table{border-collapse:collapse;width:max-content;min-width:100%;table-layout:auto}
+th,td{border-right:2px solid var(--line);border-bottom:2px solid var(--line);padding:15px 18px;font-size:17px;vertical-align:middle;white-space:nowrap}
+th{background:var(--pale);font-weight:850;position:sticky;top:0;z-index:2}td:not(:first-child),th:not(:first-child){text-align:right;font-variant-numeric:tabular-nums}
+th:last-child,td:last-child{border-right:0}tr:last-child td{border-bottom:0}
+.normalTable th:first-child,.normalTable td:first-child{min-width:360px}.normalTable th:not(:first-child),.normalTable td:not(:first-child){min-width:155px}
+.wideTable th,.wideTable td{min-width:145px}.wideTable th:first-child,.wideTable td:first-child{min-width:190px}
+</style>
+</head>
+<body>
+<main>
+<section class="card">
+<h1>Financial PDF → Excel <span class="small">v28.0</span></h1>
+<p class="note">Structure-first reconstruction. The app identifies the logical financial table before orientation conversion. Complete cell values remain atomic, including Indian formats such as ₹12,50,000.</p>
+<div class="controls">
+<label class="file">📄 Choose PDF <input id="pdf" type="file" accept="application/pdf,.pdf"></label>
+<button class="primary" id="convert">Convert PDF</button>
+<button id="sample">Load Sample Financial Table</button>
+<button class="danger" id="reset">Reset</button>
+</div>
+<div id="status" class="status"></div>
+</section>
+
+<section class="card">
+<h2>Reconstruction</h2>
+<p class="note">The converter first extracts text with PDF geometry. If the PDF contains no usable text layer, it automatically tries OCR instead of falsely reporting a successful reconstruction. OCR results are used only when actual text is detected.</p>
+<div id="diag" class="small"></div>
+</section>
+
+<section class="card">
+<h2>Preview</h2>
+<div id="shape" class="badge">No table loaded</div>
+<div class="mode">
+<button id="normal" class="active">20 × 3 view</button>
+<button id="wide">3 × 20 view</button>
+<button id="copy">Copy table</button>
+</div>
+<div id="wrap" class="tableWrap"><div class="small" style="padding:22px">Load a sample or convert a PDF.</div></div>
+<div class="downloads">
+<button class="green" id="xlsx">Download Excel</button>
+<button id="csv">Download CSV</button>
+</div>
+</section>
+</main>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js"></script>
+<script>
+pdfjsLib.GlobalWorkerOptions.workerSrc="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js";
+
+const SAMPLE=[
+["Particulars","31-03-2026","31-03-2025"],
+["Revenue from Operations","12,50,000","10,80,000"],
+["Cost of Goods Sold","8,10,000","7,20,000"],
+["Gross Profit","4,40,000","3,60,000"],
+["Employee Benefits Expenses","1,20,000","1,00,000"],
+["Finance Costs","35,000","28,000"],
+["Depreciation and Amortisation Expenses","25,000","22,000"],
+["Other Operating Expenses","55,000","45,000"],
+["Profit Before Tax","2,05,000","1,65,000"],
+["Current Tax Expense","52,000","42,000"],
+["Profit After Tax","1,53,000","1,23,000"],
+["Trade Receivables","2,40,000","2,05,000"],
+["Inventories","1,80,000","1,55,000"],
+["Cash and Cash Equivalents","95,000","72,000"],
+["Trade Payables","1,35,000","1,20,000"],
+["Short-term Borrowings","80,000","65,000"],
+["Total Current Assets","5,15,000","4,32,000"],
+["Total Current Liabilities","2,15,000","1,85,000"],
+["Net Working Capital","3,00,000","2,47,000"],
+["Net Worth","8,50,000","7,10,000"]
+];
+let M=[],wide=false;
+const $=id=>document.getElementById(id);
+const clean=s=>String(s??"").replace(/\u00a0/g," ").trim();
+const esc=s=>String(s??"").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
+
+function setStatus(t,type="err"){const s=$("status");s.textContent=t;s.className="status show "+type}
+function transpose(a){const n=Math.max(...a.map(r=>r.length));return Array.from({length:n},(_,c)=>a.map(r=>r[c]??""))}
+
+function render(){
+ if(!M.length){$("shape").textContent="No table loaded";return}
+ const A=wide?transpose(M):M;
+ $("shape").textContent=`${A.length-1} rows × ${A[0].length} columns`;
+ let s='<table class="'+(wide?'wideTable':'normalTable')+'"><thead><tr>';
+ s+=A[0].map(v=>`<th>${esc(v)}</th>`).join("");
+ s+="</tr></thead><tbody>";
+ for(let r=1;r<A.length;r++)s+="<tr>"+A[r].map(v=>`<td>${esc(v)}</td>`).join("")+"</tr>";
+ $("wrap").innerHTML=s+"</tbody></table>";
+ $("normal").classList.toggle("active",!wide);$("wide").classList.toggle("active",wide);
+}
+function showMatrix(a,source){
+ M=a.map(r=>r.slice());wide=false;render();
+ $("diag").textContent=`${source}: ${M.length-1} data rows × ${M[0].length} columns. Preview, Excel and CSV all use this exact stored matrix.`;
+ setStatus("Conversion completed. The screen view does not change the underlying rows, columns or values.","ok");
+}
+function isNum(s){return /^₹?\s*[-+]?\d[\d,\s]*(?:\.\d+)?%?$/.test(clean(s))}
+function isDate(s){return /^(?:\d{1,2}[-/.]){2}\d{2,4}$/.test(clean(s))||/^\d{1,2}[-/.]\d{1,2}[-/.]\d{4}$/.test(clean(s))}
+function tokenWords(item){return clean(item.str)}
+function clusterLines(items){
+ const arr=items.filter(x=>clean(x.str)).sort((a,b)=>a.y-b.y||a.x-b.x);
+ const lines=[];
+ for(const x of arr){
+   const tol=Math.max(3,Math.min(9,x.h*0.55));
+   let best=null,bd=1e9;
+   for(const l of lines){const d=Math.abs(l.y-x.y);if(d<tol&&d<bd){best=l;bd=d}}
+   if(!best){best={y:x.y,h:x.h,items:[]};lines.push(best)}
+   best.items.push(x);best.y=(best.y*(best.items.length-1)+x.y)/best.items.length;
+ }
+ return lines.sort((a,b)=>a.y-b.y);
+}
+function joinSameCell(items){
+ const a=items.slice().sort((x,y)=>x.x-y.x),g=[];
+ for(const x of a){
+   const q=g[g.length-1];
+   const gap=q?x.x-(q.x+q.w):999;
+   // Small gaps are continuation of the same PDF cell. Never split a phrase into columns.
+   const same=q && gap<=Math.max(10,q.h*1.8);
+   if(same){q.text+=(q.text?" ":"")+clean(x.str);q.w=Math.max(q.w,x.x+x.w-q.x)}
+   else g.push({x:x.x,w:x.w,h:x.h,text:clean(x.str)});
+ }
+ return g;
+}
+function findHeader(rows){
+ let best=-1,score=-1;
+ rows.forEach((r,i)=>{
+   const t=r.map(x=>x.text).join(" ");
+   let sc=0;
+   if(/particular|description|nature|revenue|income|expense|assets|liabilit/i.test(t))sc+=3;
+   if(r.filter(x=>isDate(x.text)).length>=1)sc+=3;
+   if(r.filter(x=>isNum(x.text)).length>=1)sc+=1;
+   if(r.length>=2)sc+=1;
+   if(sc>score){score=sc;best=i}
+ });
+ return best;
+}
+function reconstructFromGeometry(items){
+ const raw=clusterLines(items).map(l=>joinSameCell(l.items));
+ if(raw.length<2)return [];
+ const hi=findHeader(raw); if(hi<0)return [];
+ const h=raw[hi];
+ // Header may be printed over two visual lines. Prefer the row containing the most column anchors.
+ let anchors=h.map(c=>c.x);
+ if(anchors.length<2){
+   const next=raw[hi+1]||[];
+   if(next.length>anchors.length)anchors=next.map(c=>c.x);
+ }
+ if(anchors.length<2)return [];
+ // Merge duplicated/near-identical anchors while preserving left-to-right order.
+ anchors=anchors.sort((a,b)=>a-b).filter((x,i,a)=>i===0||x-a[i-1]>18);
+ const out=[];
+ for(const row of raw.slice(hi)){
+   const cells=Array(anchors.length).fill("");
+   for(const c of row){
+     let bi=0,bd=Infinity;
+     anchors.forEach((a,i)=>{const d=Math.abs(c.x-a);if(d<bd){bd=d;bi=i}});
+     cells[bi]=cells[bi]?cells[bi]+" "+c.text:c.text;
+   }
+   if(cells.some(v=>clean(v)))out.push(cells.map((v,i)=>i?clean(v).replace(/\s+/g,""):clean(v).replace(/\s+/g," ")));
+ }
+ if(out.length<2)return [];
+ // Reject obvious non-table reconstructions.
+ const width=out[0].length;
+ const useful=out.slice(1).filter(r=>r.length===width);
+ const numericRows=useful.filter(r=>r.slice(1).some(isNum)||r.slice(1).some(isDate)).length;
+ if(width<2||useful.length<1||numericRows<1)return [];
+ return out;
+}
+async function extractText(file){
+ const pdf=await pdfjsLib.getDocument({data:await file.arrayBuffer()}).promise;
+ let all=[];
+ for(let p=1;p<=pdf.numPages;p++){
+   const page=await pdf.getPage(p),c=await page.getTextContent(),v=page.getViewport({scale:1});
+   for(const it of c.items){
+     const tr=it.transform;
+     all.push({str:it.str,x:tr[4],y:v.height-tr[5],w:Math.max(1,it.width||0),h:Math.max(8,Math.abs(tr[3])||10),page:p});
+   }
+ }
+ return {pdf,items:all};
+}
+async function ocrPDF(pdf){
+ if(!window.Tesseract)throw Error("OCR engine could not be loaded. Please use a PDF with a text layer or reconnect to the internet.");
+ const all=[];
+ const worker=await Tesseract.createWorker("eng");
+ try{
+  await worker.setParameters({preserve_interword_spaces:"1"});
+  for(let p=1;p<=pdf.numPages;p++){
+   $("status").textContent=`OCR reading page ${p} of ${pdf.numPages}…`;
+   const page=await pdf.getPage(p),vp=page.getViewport({scale:2});
+   const canvas=document.createElement("canvas");canvas.width=Math.ceil(vp.width);canvas.height=Math.ceil(vp.height);
+   await page.render({canvasContext:canvas.getContext("2d"),viewport:vp}).promise;
+   const res=await worker.recognize(canvas);
+   const lines=res.data.lines||[];
+   for(const l of lines){
+     const words=(l.words||[]).filter(w=>clean(w.text));
+     if(!words.length)continue;
+     all.push(...words.map(w=>({str:clean(w.text),x:w.bbox.x0/2,y:w.bbox.y0/2,w:(w.bbox.x1-w.bbox.x0)/2,h:(w.bbox.y1-w.bbox.y0)/2,page:p})));
+   }
+  }
+ }finally{await worker.terminate()}
+ return all;
+}
+async function convert(){
+ const f=$("pdf").files[0];
+ if(!f){setStatus("Please choose a PDF first.");return}
+ try{
+  setStatus("Reading PDF text layer…","ok");
+  const {pdf,items}=await extractText(f);
+  let r=reconstructFromGeometry(items);
+  if(r.length>=2){
+    showMatrix(r,"Text-layer reconstruction");
+    return;
+  }
+  setStatus("No reliable text table found. Trying OCR on the actual PDF pages…","ok");
+  const ocrItems=await ocrPDF(pdf);
+  r=reconstructFromGeometry(ocrItems);
+  if(r.length<2)throw Error("The PDF could not be reconstructed as a reliable table, even after OCR. No missing values have been invented.");
+  showMatrix(r,"OCR reconstruction");
+ }catch(e){console.error(e);setStatus(e.message||"Conversion failed.")}
+}
+$("convert").onclick=convert;
+$("sample").onclick=()=>showMatrix(SAMPLE,"Sample logical table");
+$("reset").onclick=()=>{M=[];wide=false;$("pdf").value="";$("diag").textContent="";$("wrap").innerHTML='<div class="small" style="padding:22px">Load a sample or convert a PDF.</div>';$("shape").textContent="No table loaded";$("status").className="status"};
+$("normal").onclick=()=>{wide=false;render()};$("wide").onclick=()=>{wide=true;render()};
+$("copy").onclick=async()=>{if(!M.length)return;try{await navigator.clipboard.writeText(M.map(r=>r.join("\t")).join("\n"));setStatus("Table copied with the same stored rows, columns and values.","ok")}catch{setStatus("Copy was blocked by the browser. Use Download CSV instead.")}};
+$("csv").onclick=()=>{if(!M.length)return;const s=M.map(r=>r.map(v=>`"${String(v??"").replace(/"/g,'""')}"`).join(",")).join("\r\n");const a=document.createElement("a");a.href=URL.createObjectURL(new Blob(["\ufeff"+s],{type:"text/csv;charset=utf-8"}));a.download="financial_reconstructed_v28.csv";a.click()};
+$("xlsx").onclick=()=>{if(!M.length)return;const ws=XLSX.utils.aoa_to_sheet(M);ws["!cols"]=M[0].map((_,c)=>({wch:Math.min(60,Math.max(14,...M.map(r=>String(r[c]??"").length+2)))}));const wb=XLSX.utils.book_new();XLSX.utils.book_append_sheet(wb,ws,"Financial Table");XLSX.writeFile(wb,"financial_reconstructed_v28.xlsx")};
+</script>
+</body>
+</html>
