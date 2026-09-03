@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
-<title>Financial PDF → Excel v28.0</title>
+<title>Financial PDF → Excel v29.0</title>
 <style>
 :root{--navy:#172744;--blue:#1768b5;--pale:#eef5fc;--line:#d5e2f0;--green:#159447;--red:#b52f2f;--muted:#607897;--bg:#f3f8fd}
 *{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--navy);font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Arial,sans-serif}
@@ -19,14 +19,14 @@ table{border-collapse:collapse;width:max-content;min-width:100%;table-layout:aut
 th,td{border-right:2px solid var(--line);border-bottom:2px solid var(--line);padding:15px 18px;font-size:17px;vertical-align:middle;white-space:nowrap}
 th{background:var(--pale);font-weight:850;position:sticky;top:0;z-index:2}td:not(:first-child),th:not(:first-child){text-align:right;font-variant-numeric:tabular-nums}
 th:last-child,td:last-child{border-right:0}tr:last-child td{border-bottom:0}
-.normalTable th:first-child,.normalTable td:first-child{min-width:360px}.normalTable th:not(:first-child),.normalTable td:not(:first-child){min-width:155px}
+.normalTable th:first-child,.normalTable td:first-child{min-width:330px}.normalTable th:not(:first-child),.normalTable td:not(:first-child){min-width:170px}
 .wideTable th,.wideTable td{min-width:145px}.wideTable th:first-child,.wideTable td:first-child{min-width:190px}
 </style>
 </head>
 <body>
 <main>
 <section class="card">
-<h1>Financial PDF → Excel <span class="small">v28.0</span></h1>
+<h1>Financial PDF → Excel <span class="small">v29.0</span></h1>
 <p class="note">Structure-first reconstruction. The app identifies the logical financial table before orientation conversion. Complete cell values remain atomic, including Indian formats such as ₹12,50,000.</p>
 <div class="controls">
 <label class="file">📄 Choose PDF <input id="pdf" type="file" accept="application/pdf,.pdf"></label>
@@ -39,7 +39,7 @@ th:last-child,td:last-child{border-right:0}tr:last-child td{border-bottom:0}
 
 <section class="card">
 <h2>Reconstruction</h2>
-<p class="note">The converter first extracts text with PDF geometry. If the PDF contains no usable text layer, it automatically tries OCR instead of falsely reporting a successful reconstruction. OCR results are used only when actual text is detected.</p>
+<p class="note"><strong>v29 fix:</strong> orientation changes always reset horizontal scroll to the left so the Particulars column cannot remain hidden. The converter first extracts text with PDF geometry. If the PDF contains no usable text layer, it automatically tries OCR instead of falsely reporting a successful reconstruction. OCR results are used only when actual text is detected.</p>
 <div id="diag" class="small"></div>
 </section>
 
@@ -104,6 +104,10 @@ function render(){
  s+="</tr></thead><tbody>";
  for(let r=1;r<A.length;r++)s+="<tr>"+A[r].map(v=>`<td>${esc(v)}</td>`).join("")+"</tr>";
  $("wrap").innerHTML=s+"</tbody></table>";
+ // Always start a newly rendered orientation at the left edge.
+ // This prevents the Particulars column from remaining hidden after
+ // switching back from the 3 × 20 view.
+ requestAnimationFrame(()=>{ $("wrap").scrollLeft=0; });
  $("normal").classList.toggle("active",!wide);$("wide").classList.toggle("active",wide);
 }
 function showMatrix(a,source){
@@ -240,8 +244,8 @@ $("sample").onclick=()=>showMatrix(SAMPLE,"Sample logical table");
 $("reset").onclick=()=>{M=[];wide=false;$("pdf").value="";$("diag").textContent="";$("wrap").innerHTML='<div class="small" style="padding:22px">Load a sample or convert a PDF.</div>';$("shape").textContent="No table loaded";$("status").className="status"};
 $("normal").onclick=()=>{wide=false;render()};$("wide").onclick=()=>{wide=true;render()};
 $("copy").onclick=async()=>{if(!M.length)return;try{await navigator.clipboard.writeText(M.map(r=>r.join("\t")).join("\n"));setStatus("Table copied with the same stored rows, columns and values.","ok")}catch{setStatus("Copy was blocked by the browser. Use Download CSV instead.")}};
-$("csv").onclick=()=>{if(!M.length)return;const s=M.map(r=>r.map(v=>`"${String(v??"").replace(/"/g,'""')}"`).join(",")).join("\r\n");const a=document.createElement("a");a.href=URL.createObjectURL(new Blob(["\ufeff"+s],{type:"text/csv;charset=utf-8"}));a.download="financial_reconstructed_v28.csv";a.click()};
-$("xlsx").onclick=()=>{if(!M.length)return;const ws=XLSX.utils.aoa_to_sheet(M);ws["!cols"]=M[0].map((_,c)=>({wch:Math.min(60,Math.max(14,...M.map(r=>String(r[c]??"").length+2)))}));const wb=XLSX.utils.book_new();XLSX.utils.book_append_sheet(wb,ws,"Financial Table");XLSX.writeFile(wb,"financial_reconstructed_v28.xlsx")};
+$("csv").onclick=()=>{if(!M.length)return;const s=M.map(r=>r.map(v=>`"${String(v??"").replace(/"/g,'""')}"`).join(",")).join("\r\n");const a=document.createElement("a");a.href=URL.createObjectURL(new Blob(["\ufeff"+s],{type:"text/csv;charset=utf-8"}));a.download="financial_reconstructed_v29.csv";a.click()};
+$("xlsx").onclick=()=>{if(!M.length)return;const ws=XLSX.utils.aoa_to_sheet(M);ws["!cols"]=M[0].map((_,c)=>({wch:Math.min(60,Math.max(14,...M.map(r=>String(r[c]??"").length+2)))}));const wb=XLSX.utils.book_new();XLSX.utils.book_append_sheet(wb,ws,"Financial Table");XLSX.writeFile(wb,"financial_reconstructed_v29.xlsx")};
 </script>
 </body>
 </html>
