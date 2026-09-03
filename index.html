@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
-<title>Financial PDF to Excel — Structure First v27</title>
+<title>Financial PDF to Excel — Structure First v28</title>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/4.4.168/pdf.min.mjs" type="module"></script>
 <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
 <style>
@@ -40,6 +40,7 @@ input[type=file]{display:none}
 .badge{font-size:20px;color:var(--muted);font-weight:800}
 .tableScroll{width:100%;overflow-x:auto;overflow-y:hidden;border:4px solid var(--line);border-radius:28px;margin-top:22px;-webkit-overflow-scrolling:touch}
 table{border-collapse:collapse;background:#fff;table-layout:auto;width:max-content;min-width:100%}
+.normal{width:100%;min-width:590px}
 th,td{border:2px solid var(--line);padding:16px 18px;font-size:18px;line-height:1.25;vertical-align:middle}
 th{background:#edf5fd;font-weight:850;white-space:nowrap}
 td.particular{font-weight:650;white-space:nowrap;min-width:300px}
@@ -65,7 +66,7 @@ td.number{white-space:nowrap;text-align:right;font-variant-numeric:tabular-nums;
 <body>
 <main>
 <section class="card">
-  <span class="version">Version 27 • Structure-first financial conversion</span>
+  <span class="version">Version 28 • Structure-first financial conversion</span>
   <h1>Financial PDF → Excel / CSV</h1>
   <p class="sub">Reconstruct the logical financial table first. Screen orientation changes only the preview — never the stored data.</p>
   <div class="note">
@@ -116,7 +117,7 @@ td.number{white-space:nowrap;text-align:right;font-variant-numeric:tabular-nums;
   </div>
 </section>
 
-<div class="footer">Developed by Anil Sharma • Financial table reconstruction utility • v27</div>
+<div class="footer">Developed by Anil Sharma • Financial table reconstruction utility • v28</div>
 </main>
 
 <script type="module">
@@ -160,6 +161,11 @@ function render(){
   const rows = displayMode==="normal" ? matrix : transpose(matrix);
   $("dimensions").textContent = `${rows.length} rows × ${rows[0].length} columns`;
   table.className = displayMode==="normal" ? "normal" : "transposed";
+
+  // Never retain the horizontal scroll position from the other orientation.
+  // This prevents the first column/first characters from appearing clipped
+  // when returning from the 3 × 20 view to the normal 20 × 3 view.
+  requestAnimationFrame(()=>{ $("tableScroll").scrollLeft = 0; });
 
   rows.forEach((row,ri)=>{
     const tr=document.createElement("tr");
@@ -311,8 +317,8 @@ function loadData(a, label){
 }
 
 $("sampleBtn").onclick=()=>loadData(sample,"Sample loaded");
-$("normalBtn").onclick=()=>{displayMode="normal";render()};
-$("transposeBtn").onclick=()=>{displayMode="transpose";render()};
+$("normalBtn").onclick=()=>{displayMode="normal"; $("tableScroll").scrollLeft=0; render()};
+$("transposeBtn").onclick=()=>{displayMode="transpose"; $("tableScroll").scrollLeft=0; render()};
 $("resetBtn").onclick=()=>{
   matrix=[];displayMode="normal";$("pdfFile").value="";render();
   status("Reset complete. Previous table data has been cleared.");
@@ -343,13 +349,13 @@ $("excelBtn").onclick=()=>{
   ws["!cols"]=matrix[0].map((_,i)=>({wch:i===0?42:18}));
   const wb=XLSX.utils.book_new();
   XLSX.utils.book_append_sheet(wb,ws,"Financial Table");
-  XLSX.writeFile(wb,"Financial_Table_Reconstructed_v27.xlsx");
+  XLSX.writeFile(wb,"Financial_Table_Reconstructed_v28.xlsx");
 };
 $("csvBtn").onclick=()=>{
   if(!matrix.length)return;
   const csv=XLSX.utils.sheet_to_csv(XLSX.utils.aoa_to_sheet(exportMatrix()),{FS:",",RS:"\r\n"});
   const blob=new Blob(["\uFEFF"+csv],{type:"text/csv;charset=utf-8"});
-  const a=document.createElement("a");a.href=URL.createObjectURL(blob);a.download="Financial_Table_Reconstructed_v27.csv";a.click();
+  const a=document.createElement("a");a.href=URL.createObjectURL(blob);a.download="Financial_Table_Reconstructed_v28.csv";a.click();
   setTimeout(()=>URL.revokeObjectURL(a.href),1000);
 };
 $("copyBtn").onclick=async()=>{
